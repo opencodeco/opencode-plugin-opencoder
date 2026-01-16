@@ -1,0 +1,44 @@
+# Zig build artifacts
+zig-cache/
+zig-out/
+
+# Build directories
+build/
+dist/
+
+# Object files
+*.o
+*.obj
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Debug files
+*.dSYM/
+*.pdb
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Local configuration
+.env
+.env.local
+
+# Coverage reports
+coverage/
+*.profraw
+*.profdata
+
+# Testing artifacts
+test-results/
+
+# Dependencies (if any)
+lib/
+vendor/
