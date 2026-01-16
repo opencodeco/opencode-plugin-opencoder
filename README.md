@@ -1,46 +1,58 @@
 # opencoder
 
-**Autonomous OpenCode Runner** - A POSIX-compliant Bash script that runs [OpenCode](https://opencode.ai) CLI in a fully autonomous way, creating development plans and executing them continuously without manual intervention.
+[![CI](https://github.com/opencodeco/opencoder/actions/workflows/ci.yml/badge.svg)](https://github.com/opencodeco/opencoder/actions/workflows/ci.yml)
+
+**Autonomous OpenCode Runner** - A Zig-powered CLI that runs [OpenCode](https://opencode.ai) in a fully autonomous way, creating development plans and executing them continuously without manual intervention.
 
 ## Features
 
 - **Autonomous Development Loop** - Continuously plans, executes, and evaluates without stopping
 - **Two-Model Architecture** - Uses a high-capability model for planning and a faster model for execution
 - **Provider Presets** - Quick setup with GitHub Copilot, Anthropic, OpenAI, or OpenCode backends
-- **State Persistence** - Resumes from where it left off after interruptions
+- **State Persistence** - Resumes from where it left off after interruptions (JSON format)
 - **Exponential Backoff** - Graceful retry logic for transient failures
 - **Plan History** - Archives completed plans for reference
 - **Signal Handling** - Clean shutdown with state preservation
+- **Cross-Platform** - Builds for Linux and macOS (amd64/arm64)
 
 ## Installation
 
-### Quick Install
+### Pre-built Binaries
+
+Download the latest release for your platform from [GitHub Releases](https://github.com/opencodeco/opencoder/releases):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/opencodeco/opencoder/main/opencoder -o opencoder
+# Linux (amd64)
+curl -fsSL https://github.com/opencodeco/opencoder/releases/latest/download/opencoder-linux-amd64 -o opencoder
+
+# Linux (arm64)
+curl -fsSL https://github.com/opencodeco/opencoder/releases/latest/download/opencoder-linux-arm64 -o opencoder
+
+# macOS (Intel)
+curl -fsSL https://github.com/opencodeco/opencoder/releases/latest/download/opencoder-macos-amd64 -o opencoder
+
+# macOS (Apple Silicon)
+curl -fsSL https://github.com/opencodeco/opencoder/releases/latest/download/opencoder-macos-arm64 -o opencoder
+
+# Make executable and move to PATH
 chmod +x opencoder
 sudo mv opencoder /usr/local/bin/
 ```
 
-### Manual Install
+### Build from Source
 
-1. Download the script:
+Requires [Zig 0.15+](https://ziglang.org/download/):
+
 ```bash
 git clone https://github.com/opencodeco/opencoder.git
 cd opencoder
-```
-
-2. Make it executable and move to PATH:
-```bash
-chmod +x opencoder
-sudo cp opencoder /usr/local/bin/
+zig build -Doptimize=ReleaseSafe
+sudo cp zig-out/bin/opencoder /usr/local/bin/
 ```
 
 ## Requirements
 
 - [OpenCode CLI](https://opencode.ai) installed and configured
-- Bash 4.0+ (macOS may need `brew install bash`)
-- Standard POSIX utilities (sed, grep, date)
 
 ## Usage
 
@@ -87,6 +99,7 @@ opencoder -P openai/gpt-4 -E openai/gpt-4o-mini "build a CLI tool"
 | `-p, --project DIR` | Project directory (default: current directory) |
 | `-v, --verbose` | Enable verbose logging |
 | `-h, --help` | Show help message |
+| `--version` | Show version |
 
 ## Provider Presets
 
@@ -124,10 +137,8 @@ Opencoder creates a `.opencoder/` directory in your project:
 
 ```
 .opencoder/
-├── state                    # Current execution state
+├── state.json               # Current execution state (JSON)
 ├── current_plan.md          # Active task plan
-├── alerts.log               # Critical error alerts
-├── config.env               # Optional configuration overrides
 ├── history/                 # Archived completed plans
 │   └── plan_YYYYMMDD_HHMMSS_cycleN.md
 └── logs/
@@ -175,6 +186,22 @@ Using bcrypt for password hashing, JWT for tokens.
 - **Let it run** - Opencoder is designed to run continuously; trust the loop
 - **Check the logs** - Detailed logs are in `.opencoder/logs/` if something goes wrong
 - **Review history** - Completed plans are archived in `.opencoder/history/`
+
+## Development
+
+```bash
+# Build debug version
+zig build
+
+# Run tests
+zig build test
+
+# Check formatting
+zig fmt --check src/
+
+# Build release
+zig build -Doptimize=ReleaseSafe
+```
 
 ## License
 
