@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-linux
+            artifact: opencoder-linux-amd64
+          - os: ubuntu-latest
+            target: aarch64-linux
+            artifact: opencoder-linux-arm64
+          - os: macos-latest
+            target: x86_64-macos
+            artifact: opencoder-macos-amd64
+          - os: macos-latest
+            target: aarch64-macos
+            artifact: opencoder-macos-arm64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Build release
+        run: zig build -Doptimize=ReleaseSafe -Dtarget=${{ matrix.target }}
+
+      - name: Rename binary
+        run: mv zig-out/bin/opencoder ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/opencoder-linux-amd64/opencoder-linux-amd64
+            artifacts/opencoder-linux-arm64/opencoder-linux-arm64
+            artifacts/opencoder-macos-amd64/opencoder-macos-amd64
+            artifacts/opencoder-macos-arm64/opencoder-macos-arm64
+          generate_release_notes: true
