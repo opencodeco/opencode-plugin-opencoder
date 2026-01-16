@@ -7,11 +7,14 @@ const std = @import("std");
 const fs = std.fs;
 const Allocator = std.mem.Allocator;
 
+const fsutil = @import("fs.zig");
+
 const stdout_file = fs.File{ .handle = std.posix.STDOUT_FILENO };
 
 /// Logger for opencoder operations
 pub const Logger = struct {
     main_log: ?fs.File,
+    main_log_path: []const u8,
     cycle_log_dir: []const u8,
     alerts_file: []const u8,
     cycle: u32,
@@ -28,7 +31,7 @@ pub const Logger = struct {
     ) !Logger {
         // Open main log file
         const main_log_path = try std.fs.path.join(allocator, &.{ opencoder_dir, "logs", "main.log" });
-        defer allocator.free(main_log_path);
+        errdefer allocator.free(main_log_path);
 
         const main_log = fs.cwd().openFile(main_log_path, .{ .mode = .write_only }) catch |err| blk: {
             if (err == error.FileNotFound) {
@@ -44,6 +47,7 @@ pub const Logger = struct {
 
         return Logger{
             .main_log = main_log,
+            .main_log_path = main_log_path,
             .cycle_log_dir = cycle_log_dir,
             .alerts_file = alerts_file,
             .cycle = 1,
@@ -58,8 +62,132 @@ pub const Logger = struct {
         if (self.main_log) |main_log_file| {
             main_log_file.close();
         }
+        self.allocator.free(self.main_log_path);
         self.allocator.free(self.cycle_log_dir);
         self.allocator.free(self.alerts_file);
+    }
+
+    /// Rotate the main log file by renaming it with a timestamp
+    pub fn rotate(self: *Logger) !void {
+        if (self.main_log) |main_log_file| {
+            main_log_file.close();
+            self.main_log = null;
+        }
+
+        var ts_buf: [24]u8 = undefined;
+        const ts = timestampISO(&ts_buf);
+
+        var rotated_path_buf: [512]u8 = undefined;
+        const rotated_path = std.fmt.bufPrint(&rotated_path_buf, "{s}.{s}", .{
+            self.main_log_path,
+            ts,
+        }) catch return error.PathTooLong;
+
+        fs.cwd().rename(self.main_log_path, rotated_path) catch |err| {
+            if (err != error.FileNotFound) {
+                return err;
+            }
+        };
+
+        const new_log = fs.cwd().createFile(self.main_log_path, .{}) catch {
+            return error.CreationFailed;
+        };
+        self.main_log = new_log;
+    }
+
+    /// Clean up old log files based on retention period (in days)
+    pub fn cleanup(self: *Logger, log_retention: u32) !void {
+        const now = std.time.timestamp();
+        const cutoff_timestamp = now - (@as(i64, log_retention) * 24 * 60 * 60);
+
+        const logs_dir_name = std.fs.path.dirname(self.main_log_path) orelse return;
+        var dir = try fs.cwd().openDir(logs_dir_name, .{ .iterate = true });
+        defer dir.close();
+
+        var walker = try dir.walk(self.allocator);
+        defer walker.deinit();
+
+        while (try walker.next()) |entry| {
+            if (entry.kind != .file) continue;
+
+            const path = entry.path;
+            if (!std.mem.endsWith(u8, path, ".log")) continue;
+            if (std.mem.endsWith(u8, path, "main.log")) continue;
+
+            const full_path = try std.fs.path.join(self.allocator, &.{ logs_dir_name, path });
+            defer self.allocator.free(full_path);
+
+            const file = try dir.openFile(path, .{});
+            defer file.close();
+
+            const stat = try file.stat();
+            const mtime = stat.mtime;
+
+            if (mtime < cutoff_timestamp) {
+                dir.deleteFile(path) catch {};
+            }
+        }
+
+        self.cleanupRotatedLogs(cutoff_timestamp) catch {};
+        self.cleanupCycleLogs(log_retention) catch {};
+    }
+
+    fn cleanupRotatedLogs(self: *Logger, cutoff_timestamp: i64) !void {
+        const logs_dir = std.fs.path.dirname(self.main_log_path) orelse return;
+
+        var dir = try fs.cwd().openDir(logs_dir, .{ .iterate = true });
+        defer dir.close();
+
+        var walker = try dir.walk(self.allocator);
+        defer walker.deinit();
+
+        while (try walker.next()) |entry| {
+            if (entry.kind != .file) continue;
+
+            const path = entry.path;
+            if (!std.mem.startsWith(u8, path, "main.log.")) continue;
+
+            const full_path = try std.fs.path.join(self.allocator, &.{ logs_dir, path });
+            defer self.allocator.free(full_path);
+
+            const file = try dir.openFile(path, .{});
+            defer file.close();
+
+            const stat = try file.stat();
+            const mtime = stat.mtime;
+
+            if (mtime < cutoff_timestamp) {
+                dir.deleteFile(path) catch {};
+            }
+        }
+    }
+
+    fn cleanupCycleLogs(self: *Logger, log_retention: u32) !void {
+        const now = std.time.timestamp();
+        const cutoff_timestamp = now - (@as(i64, log_retention) * 24 * 60 * 60);
+
+        var dir = try fs.cwd().openDir(self.cycle_log_dir, .{ .iterate = true });
+        defer dir.close();
+
+        var walker = try dir.walk(self.allocator);
+        defer walker.deinit();
+
+        while (try walker.next()) |entry| {
+            if (entry.kind != .file) continue;
+
+            const path = entry.path;
+            if (!std.mem.startsWith(u8, path, "cycle_") or !std.mem.endsWith(u8, path, ".log")) continue;
+
+            const file = try dir.openFile(path, .{});
+            defer file.close();
+
+            const stat = try file.stat();
+            const mtime = stat.mtime;
+
+            if (mtime < cutoff_timestamp) {
+                dir.deleteFile(path) catch {};
+            }
+        }
     }
 
     /// Set current cycle number
@@ -270,4 +398,54 @@ test "timestampISO generates valid ISO 8601 format" {
     try std.testing.expectEqual(@as(u8, ':'), ts[13]);
     try std.testing.expectEqual(@as(u8, ':'), ts[16]);
     try std.testing.expectEqual(@as(u8, 'Z'), ts[19]);
+}
+
+test "rotate creates rotated log file" {
+    const test_dir = "/tmp/opencoder_test_rotate";
+    const allocator = std.testing.allocator;
+
+    fs.cwd().deleteTree(test_dir) catch {};
+    defer fs.cwd().deleteTree(test_dir) catch {};
+
+    try fs.cwd().makePath(test_dir);
+    const logs_dir = try std.fs.path.join(allocator, &.{ test_dir, "logs", "cycles" });
+    defer allocator.free(logs_dir);
+    try fs.cwd().makePath(logs_dir);
+
+    var log = try Logger.init(test_dir, false, allocator);
+    defer log.deinit();
+
+    log.log("test message");
+
+    try log.rotate();
+
+    try std.testing.expect(fsutil.fileExists(log.main_log_path));
+}
+
+test "cleanup removes old cycle logs" {
+    const test_dir = "/tmp/opencoder_test_cleanup";
+    const allocator = std.testing.allocator;
+
+    fs.cwd().deleteTree(test_dir) catch {};
+    defer fs.cwd().deleteTree(test_dir) catch {};
+
+    try fs.cwd().makePath(test_dir);
+    const cycle_dir = try std.fs.path.join(allocator, &.{ test_dir, "logs", "cycles" });
+    defer allocator.free(cycle_dir);
+    try fs.cwd().makePath(cycle_dir);
+
+    var log = try Logger.init(test_dir, false, allocator);
+    defer log.deinit();
+
+    const cycle_path = try std.fs.path.join(allocator, &.{ cycle_dir, "cycle_001.log" });
+    defer allocator.free(cycle_path);
+
+    const cycle_file = try fs.cwd().createFile(cycle_path, .{});
+    cycle_file.close();
+
+    try std.testing.expect(fsutil.fileExists(cycle_path));
+
+    try log.cleanup(30);
+
+    try std.testing.expect(fsutil.fileExists(cycle_path));
 }

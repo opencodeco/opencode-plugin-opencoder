@@ -88,7 +88,7 @@ pub const Executor = struct {
 
         if (result == .success and self.session_id == null) {
             // Set session ID after first successful task (allocate owned memory)
-            self.session_id = try std.fmt.allocPrint(self.allocator, "cycle_{d}", .{cycle});
+            self.session_id = try std.fmt.allocPrint(self.allocator, "ses_{d}", .{cycle});
         }
 
         return result;
