@@ -134,7 +134,7 @@ pub const Executor = struct {
         }
 
         // Default to NEEDS_WORK if we couldn't determine
-        self.log.logError("Failed to get evaluation result, defaulting to NEEDS_WORK");
+        self.log.logErrorFmt("Failed to get evaluation result after {d} attempts (cycle {d}), defaulting to NEEDS_WORK", .{ self.cfg.max_retries, cycle });
         return "NEEDS_WORK";
     }
 
@@ -159,8 +159,8 @@ pub const Executor = struct {
             if (result) |output| {
                 self.allocator.free(output);
                 return .success;
-            } else |_| {
-                self.log.logErrorFmt("opencode failed (attempt {d})", .{attempt + 1});
+            } else |err| {
+                self.log.logErrorFmt("opencode failed (attempt {d}/{d}): {s} with model '{s}'", .{ attempt + 1, self.cfg.max_retries, @errorName(err), model });
             }
 
             // Backoff before retry
@@ -228,16 +228,16 @@ pub const Executor = struct {
                 if (code == 0) {
                     return stdout_list.toOwnedSlice(self.allocator);
                 }
-                self.log.logErrorFmt("opencode exited with code {d}", .{code});
+                self.log.logErrorFmt("opencode exited with code {d} (model: {s}, title: {s})", .{ code, model, title });
             },
             .Signal => |sig| {
-                self.log.logErrorFmt("opencode terminated by signal {d}", .{sig});
+                self.log.logErrorFmt("opencode terminated by signal {d} (model: {s}, title: {s})", .{ sig, model, title });
             },
             .Stopped => |sig| {
-                self.log.logErrorFmt("opencode stopped by signal {d}", .{sig});
+                self.log.logErrorFmt("opencode stopped by signal {d} (model: {s}, title: {s})", .{ sig, model, title });
             },
             .Unknown => |status| {
-                self.log.logErrorFmt("opencode terminated with unknown status {d}", .{status});
+                self.log.logErrorFmt("opencode terminated with unknown status {d} (model: {s}, title: {s})", .{ status, model, title });
             },
         }
 
