@@ -70,34 +70,56 @@ pub const Loop = struct {
             // Planning phase
             if (!fsutil.fileExists(self.paths.current_plan) or self.st.phase == .planning) {
                 const result = self.executor.runPlanning(self.st.cycle) catch |err| {
-                    self.log.logErrorFmt("Planning failed: {}", .{err});
+                    self.log.logError("");
+                    self.log.logErrorFmt("[Cycle {d}] Planning phase failed: {s}", .{ self.st.cycle, @errorName(err) });
+                    self.log.logError("  The AI was unable to create a development plan");
+                    self.log.logError("  This could be due to:");
+                    self.log.logError("    - OpenCode CLI issues (check installation)");
+                    self.log.logError("    - Model API unavailability or rate limits");
+                    self.log.logError("    - Network connectivity problems");
+                    self.log.logErrorFmt("  Retrying after backoff...", .{});
                     self.backoffSleep();
                     continue;
                 };
 
                 if (result == .failure) {
-                    self.log.logError("Failed to create plan, waiting before retry...");
+                    self.log.logError("");
+                    self.log.logErrorFmt("[Cycle {d}] Planning failed after all retries", .{self.st.cycle});
+                    self.log.logError("  Unable to generate a valid development plan");
+                    self.log.logError("  Check .opencoder/logs/main.log for details");
+                    self.log.logError("  Waiting before retry...");
                     self.backoffSleep();
                     continue;
                 }
 
                 // Validate plan was created
                 if (!fsutil.fileExists(self.paths.current_plan)) {
-                    self.log.logError("Plan file not created");
+                    self.log.logError("");
+                    self.log.logErrorFmt("[Cycle {d}] Plan file not created", .{self.st.cycle});
+                    self.log.logErrorFmt("  Expected file: {s}", .{self.paths.current_plan});
+                    self.log.logError("  The AI may not have saved the plan properly");
+                    self.log.logError("  Retrying planning phase...");
                     self.backoffSleep();
                     continue;
                 }
 
                 // Validate plan content
-                const plan_content = fsutil.readFile(self.paths.current_plan, self.allocator, self.cfg.max_file_size) catch {
-                    self.log.logError("Failed to read plan file");
+                const plan_content = fsutil.readFile(self.paths.current_plan, self.allocator, self.cfg.max_file_size) catch |err| {
+                    self.log.logError("");
+                    self.log.logErrorFmt("[Cycle {d}] Failed to read plan file: {s}", .{ self.st.cycle, @errorName(err) });
+                    self.log.logErrorFmt("  File: {s}", .{self.paths.current_plan});
+                    self.log.logError("  Retrying planning phase...");
                     self.backoffSleep();
                     continue;
                 };
                 defer self.allocator.free(plan_content);
 
-                const task_count = plan.validate(plan_content) catch {
-                    self.log.logError("Plan validation failed");
+                const task_count = plan.validate(plan_content) catch |err| {
+                    self.log.logError("");
+                    self.log.logErrorFmt("[Cycle {d}] Plan validation failed: {s}", .{ self.st.cycle, @errorName(err) });
+                    self.log.logError("  The plan format is invalid or contains no actionable tasks");
+                    self.log.logError("  Expected: Markdown file with checkbox tasks (- [ ] Task description)");
+                    self.log.logError("  Deleting invalid plan and retrying...");
                     fsutil.deleteFile(self.paths.current_plan) catch {};
                     self.backoffSleep();
                     continue;
@@ -115,14 +137,19 @@ pub const Loop = struct {
             self.log.logFmt("[Cycle {d}] Executing tasks...", .{self.st.cycle});
 
             while (!shutdown_requested) {
-                const plan_content = fsutil.readFile(self.paths.current_plan, self.allocator, self.cfg.max_file_size) catch {
-                    self.log.logError("Failed to read plan file");
+                const plan_content = fsutil.readFile(self.paths.current_plan, self.allocator, self.cfg.max_file_size) catch |err| {
+                    self.log.logError("");
+                    self.log.logErrorFmt("[Cycle {d}] Cannot read plan file: {s}", .{ self.st.cycle, @errorName(err) });
+                    self.log.logErrorFmt("  File: {s}", .{self.paths.current_plan});
+                    self.log.logError("  Unable to continue task execution");
                     break;
                 };
                 defer self.allocator.free(plan_content);
 
-                const next_task = plan.getNextTask(plan_content, self.allocator) catch {
-                    self.log.logError("Failed to get next task");
+                const next_task = plan.getNextTask(plan_content, self.allocator) catch |err| {
+                    self.log.logError("");
+                    self.log.logErrorFmt("[Cycle {d}] Failed to parse next task: {s}", .{ self.st.cycle, @errorName(err) });
+                    self.log.logError("  The plan file may be corrupted or improperly formatted");
                     break;
                 };
 
@@ -143,7 +170,15 @@ pub const Loop = struct {
                     self.st.current_task_num,
                     self.st.total_tasks,
                 ) catch |err| {
-                    self.log.logErrorFmt("Task execution error: {}", .{err});
+                    self.log.logError("");
+                    self.log.logErrorFmt("[Cycle {d}] Task {d}/{d} execution error: {s}", .{
+                        self.st.cycle,
+                        self.st.current_task_num,
+                        self.st.total_tasks,
+                        @errorName(err),
+                    });
+                    self.log.logErrorFmt("  Task: {s}", .{task.description});
+                    self.log.logError("  Skipping to next task...");
                     continue;
                 };
 
@@ -154,16 +189,22 @@ pub const Loop = struct {
                         self.st.total_tasks,
                     });
                 } else {
-                    self.log.sayFmt("[Cycle {d}] Task {d}/{d} failed, skipping", .{
+                    self.log.logError("");
+                    self.log.logErrorFmt("[Cycle {d}] Task {d}/{d} failed after retries", .{
                         self.st.cycle,
                         self.st.current_task_num,
                         self.st.total_tasks,
                     });
+                    self.log.logErrorFmt("  Task: {s}", .{task.description});
+                    self.log.logError("  Marking as complete to avoid getting stuck");
+                    self.log.logError("  Check logs for failure details");
                 }
 
                 // Mark task complete regardless of result to not get stuck
-                plan.markTaskComplete(self.paths.current_plan, task.line_number, self.allocator, self.cfg.max_file_size) catch {
-                    self.log.logError("Failed to mark task complete");
+                plan.markTaskComplete(self.paths.current_plan, task.line_number, self.allocator, self.cfg.max_file_size) catch |err| {
+                    self.log.logError("");
+                    self.log.logErrorFmt("[Cycle {d}] Warning: Failed to mark task complete: {s}", .{ self.st.cycle, @errorName(err) });
+                    self.log.logError("  Plan file may not be updated correctly");
                 };
 
                 try self.st.save(self.paths.state_file, self.allocator);
@@ -180,7 +221,11 @@ pub const Loop = struct {
                 self.allocator,
                 self.cfg.max_file_size,
             ) catch |err| {
-                self.log.logErrorFmt("Evaluation error: {}", .{err});
+                self.log.logError("");
+                self.log.logErrorFmt("[Cycle {d}] Evaluation phase error: {s}", .{ self.st.cycle, @errorName(err) });
+                self.log.logError("  Unable to determine if cycle is complete");
+                self.log.logError("  Defaulting to needs_work and continuing");
+                self.log.logError("  Check logs for evaluation failure details");
                 // Default to needs_work on error
                 continue;
             };
@@ -195,7 +240,11 @@ pub const Loop = struct {
                     self.st.cycle,
                     self.allocator,
                 ) catch |err| {
-                    self.log.logErrorFmt("Failed to archive plan: {}", .{err});
+                    self.log.logError("");
+                    self.log.logErrorFmt("[Cycle {d}] Warning: Failed to archive plan: {s}", .{ self.st.cycle, @errorName(err) });
+                    self.log.logErrorFmt("  Source: {s}", .{self.paths.current_plan});
+                    self.log.logErrorFmt("  Destination: {s}", .{self.paths.history_dir});
+                    self.log.logError("  Plan history may not be preserved, but continuing...");
                 };
 
                 // Start new cycle
@@ -282,6 +331,7 @@ fn createTestLogger(allocator: Allocator) !*Logger {
 
     try std.fs.cwd().makePath(temp_dir);
 
+    const main_log_path = try std.fs.path.join(allocator, &.{ temp_dir, "main.log" });
     const cycle_log_dir = try std.fs.path.join(allocator, &.{ temp_dir, "cycles" });
     const alerts_file = try std.fs.path.join(allocator, &.{ temp_dir, "alerts.log" });
 
@@ -290,6 +340,7 @@ fn createTestLogger(allocator: Allocator) !*Logger {
     const logger_ptr = try allocator.create(Logger);
     logger_ptr.* = Logger{
         .main_log = null,
+        .main_log_path = main_log_path,
         .cycle_log_dir = cycle_log_dir,
         .alerts_file = alerts_file,
         .cycle = 0,
@@ -304,6 +355,7 @@ fn destroyTestLogger(logger_ptr: *Logger, allocator: Allocator) void {
     const temp_base = std.fs.path.dirname(logger_ptr.cycle_log_dir) orelse "/tmp";
     std.fs.cwd().deleteTree(temp_base) catch {};
 
+    allocator.free(logger_ptr.main_log_path);
     allocator.free(logger_ptr.cycle_log_dir);
     allocator.free(logger_ptr.alerts_file);
     allocator.destroy(logger_ptr);

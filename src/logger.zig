@@ -412,7 +412,7 @@ test "rotate creates rotated log file" {
     defer allocator.free(logs_dir);
     try fs.cwd().makePath(logs_dir);
 
-    var log = try Logger.init(test_dir, false, allocator);
+    var log = try Logger.init(test_dir, false, allocator, 2048);
     defer log.deinit();
 
     log.log("test message");
@@ -434,7 +434,7 @@ test "cleanup removes old cycle logs" {
     defer allocator.free(cycle_dir);
     try fs.cwd().makePath(cycle_dir);
 
-    var log = try Logger.init(test_dir, false, allocator);
+    var log = try Logger.init(test_dir, false, allocator, 2048);
     defer log.deinit();
 
     const cycle_path = try std.fs.path.join(allocator, &.{ cycle_dir, "cycle_001.log" });

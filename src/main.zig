@@ -56,11 +56,25 @@ fn runOpencoder(cfg: config.Config, allocator: std.mem.Allocator) !void {
 
     // Initialize directories
     _ = stdout_file.write("Initializing workspace...\n") catch {};
-    var paths = try fsutil.initDirectories(cfg.project_dir, allocator);
+    var paths = fsutil.initDirectories(cfg.project_dir, allocator) catch |err| {
+        _ = stderr_file.write("\nFailed to initialize workspace directories\n") catch {};
+        _ = stderr_file.write("This is required for opencoder to function properly.\n\n") catch {};
+        return err;
+    };
     defer paths.deinit();
 
     // Initialize logger
-    var log = try Logger.init(paths.opencoder_dir, cfg.verbose, allocator, cfg.log_buffer_size);
+    var log = Logger.init(paths.opencoder_dir, cfg.verbose, allocator, cfg.log_buffer_size) catch |err| {
+        _ = stderr_file.write("\nError: Failed to initialize logging system\n") catch {};
+        var err_buf: [128]u8 = undefined;
+        const err_msg = std.fmt.bufPrint(&err_buf, "Reason: {s}\n", .{@errorName(err)}) catch "Unknown error\n";
+        _ = stderr_file.write(err_msg) catch {};
+        _ = stderr_file.write("\nPossible causes:\n") catch {};
+        _ = stderr_file.write("  - Cannot create log files in .opencoder/logs/\n") catch {};
+        _ = stderr_file.write("  - Insufficient disk space\n") catch {};
+        _ = stderr_file.write("  - Permission issues\n") catch {};
+        return err;
+    };
     defer log.deinit();
 
     log.say("Workspace initialized");
@@ -104,12 +118,26 @@ fn runOpencoder(cfg: config.Config, allocator: std.mem.Allocator) !void {
     // Run main loop
     var main_loop = loop.Loop.init(&cfg, &st, &paths, &log, &executor, allocator);
     main_loop.run() catch |err| {
-        log.logErrorFmt("Loop error: {}", .{err});
+        log.logError("");
+        log.logErrorFmt("Main loop terminated with error: {s}", .{@errorName(err)});
+        log.logError("");
+        log.logError("Troubleshooting steps:");
+        log.logError("  1. Check .opencoder/logs/main.log for detailed error messages");
+        log.logError("  2. Verify opencode CLI is accessible: which opencode");
+        log.logError("  3. Ensure API credentials are configured correctly");
+        log.logError("  4. Check network connectivity");
+        log.logError("  5. Review .opencoder/alerts.log for critical alerts");
+        log.logError("");
+        log.logError("State has been saved and can be resumed by running opencoder again");
     };
 
     // Save final state
     st.save(paths.state_file, allocator) catch |err| {
-        log.logErrorFmt("Failed to save final state: {}", .{err});
+        log.logError("");
+        log.logErrorFmt("Warning: Failed to save final state: {s}", .{@errorName(err)});
+        log.logError("Progress may not be fully persisted for next run");
+        log.logErrorFmt("State file: {s}", .{paths.state_file});
+        log.logError("Check file permissions and disk space");
     };
 
     // Clean up state

@@ -74,7 +74,7 @@ test "EvaluationResult enum values" {
 
 test "hasPendingTasks returns false for missing file" {
     const allocator = std.testing.allocator;
-    const result = hasPendingTasks("/tmp/nonexistent_plan.md", allocator);
+    const result = hasPendingTasks("/tmp/nonexistent_plan.md", allocator, 1024 * 1024);
     try std.testing.expect(!result);
 }
 
@@ -85,7 +85,7 @@ test "hasPendingTasks returns true for plan with pending tasks" {
     // Write test plan
     try fsutil.writeFile(test_path, "- [ ] Task 1\n- [x] Task 2\n");
 
-    const result = hasPendingTasks(test_path, allocator);
+    const result = hasPendingTasks(test_path, allocator, 1024 * 1024);
     try std.testing.expect(result);
 
     // Clean up
@@ -99,7 +99,7 @@ test "hasPendingTasks returns false for completed plan" {
     // Write test plan
     try fsutil.writeFile(test_path, "- [x] Task 1\n- [x] Task 2\n");
 
-    const result = hasPendingTasks(test_path, allocator);
+    const result = hasPendingTasks(test_path, allocator, 1024 * 1024);
     try std.testing.expect(!result);
 
     // Clean up

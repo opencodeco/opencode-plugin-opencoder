@@ -7,6 +7,14 @@ const std = @import("std");
 const fs = std.fs;
 const Allocator = std.mem.Allocator;
 
+/// File system operation errors with context
+pub const FsError = error{
+    DirectoryCreationFailed,
+    FileReadFailed,
+    FileWriteFailed,
+    FileNotAccessible,
+};
+
 /// Paths to opencoder workspace files and directories
 pub const Paths = struct {
     opencoder_dir: []const u8,
@@ -33,7 +41,13 @@ pub const Paths = struct {
 /// Initialize the .opencoder directory structure
 pub fn initDirectories(project_dir: []const u8, allocator: Allocator) !Paths {
     // Build all paths
-    const opencoder_dir = try std.fs.path.join(allocator, &.{ project_dir, ".opencoder" });
+    const opencoder_dir = std.fs.path.join(allocator, &.{ project_dir, ".opencoder" }) catch |err| {
+        if (@import("builtin").is_test == false) {
+            const stderr_file = std.fs.File{ .handle = std.posix.STDERR_FILENO };
+            _ = stderr_file.write("Error: Failed to construct .opencoder directory path\n") catch {};
+        }
+        return err;
+    };
     errdefer allocator.free(opencoder_dir);
 
     const state_file = try std.fs.path.join(allocator, &.{ opencoder_dir, "state.json" });
@@ -57,8 +71,22 @@ pub fn initDirectories(project_dir: []const u8, allocator: Allocator) !Paths {
     const history_dir = try std.fs.path.join(allocator, &.{ opencoder_dir, "history" });
     errdefer allocator.free(history_dir);
 
-    // Create directories
-    try ensureDir(opencoder_dir);
+    // Create directories with better error context
+    ensureDir(opencoder_dir) catch |err| {
+        if (@import("builtin").is_test == false) {
+            const stderr_file = std.fs.File{ .handle = std.posix.STDERR_FILENO };
+            _ = stderr_file.write("\nError: Failed to initialize workspace directory structure\n") catch {};
+            _ = stderr_file.write("\nPossible causes:\n") catch {};
+            _ = stderr_file.write("  - Insufficient permissions in project directory\n") catch {};
+            _ = stderr_file.write("  - Disk full or quota exceeded\n") catch {};
+            _ = stderr_file.write("  - File system is read-only\n") catch {};
+            _ = stderr_file.write("\nSuggested actions:\n") catch {};
+            _ = stderr_file.write("  1. Check write permissions for project directory\n") catch {};
+            _ = stderr_file.write("  2. Check disk space: df -h\n") catch {};
+            _ = stderr_file.write("  3. Try a different project directory with -p flag\n") catch {};
+        }
+        return err;
+    };
     try ensureDir(logs_dir);
     try ensureDir(cycle_log_dir);
     try ensureDir(history_dir);
@@ -79,6 +107,11 @@ pub fn initDirectories(project_dir: []const u8, allocator: Allocator) !Paths {
 pub fn ensureDir(path: []const u8) !void {
     fs.cwd().makePath(path) catch |err| {
         if (err != error.PathAlreadyExists) {
+            if (@import("builtin").is_test == false) {
+                const stderr_file = std.fs.File{ .handle = std.posix.STDERR_FILENO };
+                _ = stderr_file.write("Error: Failed to create directory\n") catch {};
+                _ = stderr_file.write("Hint: Check parent directory permissions and available disk space\n") catch {};
+            }
             return err;
         }
     };
@@ -92,16 +125,49 @@ pub fn fileExists(path: []const u8) bool {
 
 /// Read entire file contents
 pub fn readFile(path: []const u8, allocator: Allocator, max_size: usize) ![]u8 {
-    const file = try fs.cwd().openFile(path, .{});
+    const file = fs.cwd().openFile(path, .{}) catch |err| {
+        // Only print errors in non-test builds
+        if (@import("builtin").is_test == false) {
+            const stderr_file = std.fs.File{ .handle = std.posix.STDERR_FILENO };
+            _ = stderr_file.write("Error: Failed to open file\n") catch {};
+            _ = stderr_file.write("Hint: Check that the file exists and you have read permissions\n") catch {};
+        }
+        return err;
+    };
     defer file.close();
-    return try file.readToEndAlloc(allocator, max_size);
+
+    return file.readToEndAlloc(allocator, max_size) catch |err| {
+        if (@import("builtin").is_test == false) {
+            const stderr_file = std.fs.File{ .handle = std.posix.STDERR_FILENO };
+            _ = stderr_file.write("Error: Failed to read file\n") catch {};
+            if (err == error.StreamTooLong) {
+                _ = stderr_file.write("Hint: File exceeds maximum size. Consider increasing OPENCODER_MAX_FILE_SIZE\n") catch {};
+            }
+        }
+        return err;
+    };
 }
 
 /// Write contents to file
 pub fn writeFile(path: []const u8, contents: []const u8) !void {
-    const file = try fs.cwd().createFile(path, .{});
+    const file = fs.cwd().createFile(path, .{}) catch |err| {
+        if (@import("builtin").is_test == false) {
+            const stderr_file = std.fs.File{ .handle = std.posix.STDERR_FILENO };
+            _ = stderr_file.write("Error: Failed to create/open file\n") catch {};
+            _ = stderr_file.write("Hint: Check directory permissions and available disk space\n") catch {};
+        }
+        return err;
+    };
     defer file.close();
-    try file.writeAll(contents);
+
+    file.writeAll(contents) catch |err| {
+        if (@import("builtin").is_test == false) {
+            const stderr_file = std.fs.File{ .handle = std.posix.STDERR_FILENO };
+            _ = stderr_file.write("Error: Failed to write to file\n") catch {};
+            _ = stderr_file.write("Hint: Check available disk space and file system permissions\n") catch {};
+        }
+        return err;
+    };
 }
 
 /// Delete a file if it exists

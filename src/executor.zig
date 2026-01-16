@@ -107,34 +107,46 @@ pub const Executor = struct {
         var attempt: u32 = 0;
         while (attempt < self.cfg.max_retries) : (attempt += 1) {
             if (attempt > 0) {
-                self.log.statusFmt("[Cycle {d}] Evaluating (retry {d}/{d})...", .{ cycle, attempt + 1, self.cfg.max_retries });
+                self.log.statusFmt("[Cycle {d}] Evaluation retry {d}/{d}", .{ cycle, attempt + 1, self.cfg.max_retries });
             }
 
             const result = self.runOpencode(self.cfg.planning_model, title, prompt, false);
             if (result) |output| {
                 // Check for COMPLETE or NEEDS_WORK in output
                 if (std.mem.indexOf(u8, output, "COMPLETE") != null) {
+                    self.log.logFmt("[Cycle {d}] Evaluation result: COMPLETE", .{cycle});
                     self.allocator.free(output);
                     return "COMPLETE";
                 } else if (std.mem.indexOf(u8, output, "NEEDS_WORK") != null) {
+                    self.log.logFmt("[Cycle {d}] Evaluation result: NEEDS_WORK", .{cycle});
                     self.allocator.free(output);
                     return "NEEDS_WORK";
+                } else {
+                    self.log.logErrorFmt("[Cycle {d}] Evaluation returned unexpected response", .{cycle});
+                    self.log.logError("  Expected: 'COMPLETE' or 'NEEDS_WORK'");
+                    self.log.logError("  Hint: The evaluation model may need more specific instructions");
                 }
                 self.allocator.free(output);
-            } else |_| {
-                // Error running opencode
+            } else |err| {
+                self.log.logErrorFmt("[Cycle {d}] Evaluation attempt {d} failed: {s}", .{ cycle, attempt + 1, @errorName(err) });
             }
 
             // Backoff before retry
             if (attempt + 1 < self.cfg.max_retries) {
                 const sleep_time = self.cfg.backoff_base * std.math.pow(u32, 2, attempt);
-                self.log.statusFmt("[Cycle {d}] Retrying evaluation in {d}s...", .{ cycle, sleep_time });
+                self.log.statusFmt("[Cycle {d}] Waiting {d}s before retry...", .{ cycle, sleep_time });
                 std.Thread.sleep(@as(u64, sleep_time) * std.time.ns_per_s);
             }
         }
 
         // Default to NEEDS_WORK if we couldn't determine
-        self.log.logErrorFmt("Failed to get evaluation result after {d} attempts (cycle {d}), defaulting to NEEDS_WORK", .{ self.cfg.max_retries, cycle });
+        self.log.logError("");
+        self.log.logErrorFmt("[Cycle {d}] Failed to get evaluation result after {d} attempts", .{ cycle, self.cfg.max_retries });
+        self.log.logError("  Defaulting to NEEDS_WORK to continue safely");
+        self.log.logError("  Possible causes:");
+        self.log.logError("    - Model API unavailable or rate limited");
+        self.log.logError("    - Evaluation prompt not producing expected output");
+        self.log.logError("    - Network connectivity issues");
         return "NEEDS_WORK";
     }
 
@@ -152,7 +164,7 @@ pub const Executor = struct {
 
         while (attempt < self.cfg.max_retries) : (attempt += 1) {
             if (attempt > 0) {
-                self.log.logFmt("Attempt {d}/{d}", .{ attempt + 1, self.cfg.max_retries });
+                self.log.logFmt("Retry attempt {d}/{d}", .{ attempt + 1, self.cfg.max_retries });
             }
 
             const result = self.runOpencode(model, title, prompt, continue_session);
@@ -160,13 +172,27 @@ pub const Executor = struct {
                 self.allocator.free(output);
                 return .success;
             } else |err| {
-                self.log.logErrorFmt("opencode failed (attempt {d}/{d}): {s} with model '{s}'", .{ attempt + 1, self.cfg.max_retries, @errorName(err), model });
+                self.log.logErrorFmt("OpenCode execution failed (attempt {d}/{d})", .{ attempt + 1, self.cfg.max_retries });
+                self.log.logErrorFmt("  Model: {s}", .{model});
+                self.log.logErrorFmt("  Error: {s}", .{@errorName(err)});
+
+                if (attempt + 1 == self.cfg.max_retries) {
+                    // Last attempt, provide detailed troubleshooting
+                    self.log.logError("");
+                    self.log.logError("All retry attempts exhausted. Troubleshooting tips:");
+                    self.log.logError("  1. Verify 'opencode' CLI is installed: which opencode");
+                    self.log.logError("  2. Check if opencode works directly: opencode --version");
+                    self.log.logError("  3. Verify model is available: opencode models list");
+                    self.log.logError("  4. Check API credentials are configured properly");
+                    self.log.logError("  5. Review network connectivity and API rate limits");
+                    self.log.logErrorFmt("  6. Try increasing OPENCODER_MAX_RETRIES (current: {d})", .{self.cfg.max_retries});
+                }
             }
 
             // Backoff before retry
             if (attempt + 1 < self.cfg.max_retries) {
                 const sleep_time = self.cfg.backoff_base * std.math.pow(u32, 2, attempt);
-                self.log.logFmt("Retrying in {d}s...", .{sleep_time});
+                self.log.logFmt("Waiting {d}s before retry...", .{sleep_time});
                 std.Thread.sleep(@as(u64, sleep_time) * std.time.ns_per_s);
             }
         }
@@ -228,16 +254,34 @@ pub const Executor = struct {
                 if (code == 0) {
                     return stdout_list.toOwnedSlice(self.allocator);
                 }
-                self.log.logErrorFmt("opencode exited with code {d} (model: {s}, title: {s})", .{ code, model, title });
+                self.log.logErrorFmt("OpenCode process exited with non-zero status", .{});
+                self.log.logErrorFmt("  Exit code: {d}", .{code});
+                self.log.logErrorFmt("  Model: {s}", .{model});
+                self.log.logErrorFmt("  Title: {s}", .{title});
+
+                // Provide context based on exit code
+                if (code == 1) {
+                    self.log.logError("  Common causes: Invalid arguments, API authentication failure");
+                } else if (code == 2) {
+                    self.log.logError("  Common causes: Model not found, invalid model specification");
+                } else if (code >= 126 and code <= 127) {
+                    self.log.logError("  Common causes: opencode CLI not found or not executable");
+                    self.log.logError("  Hint: Verify installation with 'which opencode'");
+                }
             },
             .Signal => |sig| {
-                self.log.logErrorFmt("opencode terminated by signal {d} (model: {s}, title: {s})", .{ sig, model, title });
+                self.log.logErrorFmt("OpenCode process terminated by signal {d}", .{sig});
+                self.log.logErrorFmt("  Model: {s}", .{model});
+                self.log.logError("  This usually indicates the process was killed externally");
+                self.log.logError("  Hint: Check system resources (memory, CPU) and logs");
             },
             .Stopped => |sig| {
-                self.log.logErrorFmt("opencode stopped by signal {d} (model: {s}, title: {s})", .{ sig, model, title });
+                self.log.logErrorFmt("OpenCode process stopped by signal {d}", .{sig});
+                self.log.logErrorFmt("  Model: {s}", .{model});
             },
             .Unknown => |status| {
-                self.log.logErrorFmt("opencode terminated with unknown status {d} (model: {s}, title: {s})", .{ status, model, title });
+                self.log.logErrorFmt("OpenCode process terminated with unknown status {d}", .{status});
+                self.log.logErrorFmt("  Model: {s}", .{model});
             },
         }
 
@@ -258,6 +302,7 @@ fn createTestLogger(allocator: Allocator) !*Logger {
 
     try std.fs.cwd().makePath(temp_dir);
 
+    const main_log_path = try std.fs.path.join(allocator, &.{ temp_dir, "main.log" });
     const cycle_log_dir = try std.fs.path.join(allocator, &.{ temp_dir, "cycles" });
     const alerts_file = try std.fs.path.join(allocator, &.{ temp_dir, "alerts.log" });
 
@@ -266,6 +311,7 @@ fn createTestLogger(allocator: Allocator) !*Logger {
     const logger_ptr = try allocator.create(Logger);
     logger_ptr.* = Logger{
         .main_log = null,
+        .main_log_path = main_log_path,
         .cycle_log_dir = cycle_log_dir,
         .alerts_file = alerts_file,
         .cycle = 0,
@@ -281,6 +327,7 @@ fn destroyTestLogger(logger_ptr: *Logger, allocator: Allocator) void {
     const temp_base = std.fs.path.dirname(logger_ptr.cycle_log_dir) orelse "/tmp";
     std.fs.cwd().deleteTree(temp_base) catch {};
 
+    allocator.free(logger_ptr.main_log_path);
     allocator.free(logger_ptr.cycle_log_dir);
     allocator.free(logger_ptr.alerts_file);
     allocator.destroy(logger_ptr);

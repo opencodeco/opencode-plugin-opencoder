@@ -187,11 +187,69 @@ pub fn printVersion(file: std.fs.File) void {
 /// Format error message for CLI errors
 pub fn formatError(err: ParseError, file: std.fs.File) void {
     const msg = switch (err) {
-        ParseError.MissingRequiredArgs => "Error: Either --provider or both --planning-model and --execution-model are required\nUse -h or --help for usage information\n",
-        ParseError.UnknownOption => "Error: Unknown option\nUse -h or --help for usage information\n",
-        ParseError.UnknownProvider => "Error: Unknown provider\nAvailable providers: github, anthropic, openai, opencode\n",
-        ParseError.InvalidProjectDir => "Error: Project directory does not exist or is not accessible\n",
-        ParseError.MissingOptionValue => "Error: Option requires a value\nUse -h or --help for usage information\n",
+        ParseError.MissingRequiredArgs =>
+        \\Error: Missing required model configuration
+        \\
+        \\You must specify models using either:
+        \\  1. Provider preset:  opencoder --provider github
+        \\  2. Explicit models:  opencoder -P planning-model -E execution-model
+        \\
+        \\Available providers: github, anthropic, openai, opencode
+        \\
+        \\For detailed help, run: opencoder --help
+        \\
+        ,
+        ParseError.UnknownOption =>
+        \\Error: Unknown command-line option
+        \\
+        \\Common options:
+        \\  --provider PROVIDER    Use a provider preset
+        \\  -P, --planning-model   Specify planning model
+        \\  -E, --execution-model  Specify execution model
+        \\  -v, --verbose          Enable verbose logging
+        \\  -p, --project DIR      Set project directory
+        \\
+        \\For complete usage information, run: opencoder --help
+        \\
+        ,
+        ParseError.UnknownProvider =>
+        \\Error: Unknown provider specified
+        \\
+        \\Available providers:
+        \\  github     - GitHub Copilot models (Claude Opus 4.5 / Sonnet 4.5)
+        \\  anthropic  - Anthropic models (Claude Sonnet 4 / Haiku)
+        \\  openai     - OpenAI models (GPT-4 / GPT-4o-mini)
+        \\  opencode   - OpenCode free models (GLM-4.7 / Minimax M2.1)
+        \\
+        \\Usage: opencoder --provider <name>
+        \\Example: opencoder --provider github
+        \\
+        ,
+        ParseError.InvalidProjectDir =>
+        \\Error: Project directory not found or not accessible
+        \\
+        \\Please check that:
+        \\  1. The directory path exists
+        \\  2. You have read/write permissions
+        \\  3. The path is specified correctly
+        \\
+        \\Current directory will be used if -p/--project is not specified.
+        \\
+        \\Example: opencoder --provider github -p /path/to/project
+        \\
+        ,
+        ParseError.MissingOptionValue =>
+        \\Error: Command-line option missing required value
+        \\
+        \\Options that require values:
+        \\  --provider PROVIDER    (e.g., --provider github)
+        \\  -P MODEL               (e.g., -P anthropic/claude-sonnet-4)
+        \\  -E MODEL               (e.g., -E anthropic/claude-haiku)
+        \\  -p DIR                 (e.g., -p /path/to/project)
+        \\
+        \\For detailed help, run: opencoder --help
+        \\
+        ,
     };
     _ = file.write(msg) catch {};
 }
