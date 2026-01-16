@@ -60,14 +60,14 @@ fn runOpencoder(cfg: config.Config, allocator: std.mem.Allocator) !void {
     defer paths.deinit();
 
     // Initialize logger
-    var log = try Logger.init(paths.opencoder_dir, cfg.verbose, allocator);
+    var log = try Logger.init(paths.opencoder_dir, cfg.verbose, allocator, cfg.log_buffer_size);
     defer log.deinit();
 
     log.say("Workspace initialized");
 
     // Load or create state
     var st = blk: {
-        if (try state.State.load(paths.state_file, allocator)) |loaded| {
+        if (try state.State.load(paths.state_file, allocator, cfg.max_file_size)) |loaded| {
             log.sayFmt("Resuming: Cycle {d}, Phase {s}", .{
                 loaded.cycle,
                 loaded.phase.toString(),
@@ -81,7 +81,7 @@ fn runOpencoder(cfg: config.Config, allocator: std.mem.Allocator) !void {
 
     // Recalculate task counts if resuming with existing plan
     if (fsutil.fileExists(paths.current_plan)) {
-        const plan_content = fsutil.readFile(paths.current_plan, allocator) catch null;
+        const plan_content = fsutil.readFile(paths.current_plan, allocator, cfg.max_file_size) catch null;
         if (plan_content) |content| {
             defer allocator.free(content);
             const plan_mod = @import("plan.zig");

@@ -25,10 +25,11 @@ pub fn evaluate(
     plan_path: []const u8,
     cycle: u32,
     allocator: Allocator,
+    max_size: usize,
 ) !EvaluationResult {
     // First check if all tasks are marked complete
     const pending_tasks = blk: {
-        const content = fsutil.readFile(plan_path, allocator) catch |err| {
+        const content = fsutil.readFile(plan_path, allocator, max_size) catch |err| {
             if (err == error.FileNotFound) {
                 // No plan file, needs work (planning)
                 return .needs_work;
@@ -54,8 +55,8 @@ pub fn evaluate(
 }
 
 /// Quick check if plan has pending tasks without AI evaluation
-pub fn hasPendingTasks(plan_path: []const u8, allocator: Allocator) bool {
-    const content = fsutil.readFile(plan_path, allocator) catch {
+pub fn hasPendingTasks(plan_path: []const u8, allocator: Allocator, max_size: usize) bool {
+    const content = fsutil.readFile(plan_path, allocator, max_size) catch {
         return false;
     };
     defer allocator.free(content);

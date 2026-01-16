@@ -91,10 +91,10 @@ pub fn fileExists(path: []const u8) bool {
 }
 
 /// Read entire file contents
-pub fn readFile(path: []const u8, allocator: Allocator) ![]u8 {
+pub fn readFile(path: []const u8, allocator: Allocator, max_size: usize) ![]u8 {
     const file = try fs.cwd().openFile(path, .{});
     defer file.close();
-    return try file.readToEndAlloc(allocator, 1024 * 1024); // 1MB max
+    return try file.readToEndAlloc(allocator, max_size);
 }
 
 /// Write contents to file
@@ -168,7 +168,7 @@ test "readFile and writeFile work correctly" {
     try writeFile(test_file, content);
 
     // Read file
-    const read_content = try readFile(test_file, allocator);
+    const read_content = try readFile(test_file, allocator, 1024 * 1024);
     defer allocator.free(read_content);
 
     try std.testing.expectEqualStrings(content, read_content);

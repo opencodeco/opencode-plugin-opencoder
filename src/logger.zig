@@ -17,12 +17,14 @@ pub const Logger = struct {
     cycle: u32,
     verbose: bool,
     allocator: Allocator,
+    buffer_size: usize,
 
     /// Initialize logger with opencoder directory
     pub fn init(
         opencoder_dir: []const u8,
         verbose: bool,
         allocator: Allocator,
+        buffer_size: usize,
     ) !Logger {
         // Open main log file
         const main_log_path = try std.fs.path.join(allocator, &.{ opencoder_dir, "logs", "main.log" });
@@ -47,6 +49,7 @@ pub const Logger = struct {
             .cycle = 1,
             .verbose = verbose,
             .allocator = allocator,
+            .buffer_size = buffer_size,
         };
     }
 
@@ -71,8 +74,9 @@ pub const Logger = struct {
 
     /// Log message with formatting
     pub fn logFmt(self: *Logger, comptime fmt: []const u8, args: anytype) void {
-        var buf: [2048]u8 = undefined;
-        const msg = std.fmt.bufPrint(&buf, fmt, args) catch return;
+        const buf = self.allocator.alloc(u8, self.buffer_size) catch return;
+        defer self.allocator.free(buf);
+        const msg = std.fmt.bufPrint(buf, fmt, args) catch return;
         self.log(msg);
     }
 
@@ -86,8 +90,9 @@ pub const Logger = struct {
 
     /// Say with formatting
     pub fn sayFmt(self: *Logger, comptime fmt: []const u8, args: anytype) void {
-        var buf: [2048]u8 = undefined;
-        const msg = std.fmt.bufPrint(&buf, fmt, args) catch return;
+        const buf = self.allocator.alloc(u8, self.buffer_size) catch return;
+        defer self.allocator.free(buf);
+        const msg = std.fmt.bufPrint(buf, fmt, args) catch return;
         self.say(msg);
     }
 
@@ -100,8 +105,9 @@ pub const Logger = struct {
 
     /// Status with formatting
     pub fn statusFmt(self: *Logger, comptime fmt: []const u8, args: anytype) void {
-        var buf: [2048]u8 = undefined;
-        const msg = std.fmt.bufPrint(&buf, fmt, args) catch return;
+        const buf = self.allocator.alloc(u8, self.buffer_size) catch return;
+        defer self.allocator.free(buf);
+        const msg = std.fmt.bufPrint(buf, fmt, args) catch return;
         self.status(msg);
     }
 
@@ -113,16 +119,18 @@ pub const Logger = struct {
 
     /// Log error with formatting
     pub fn logErrorFmt(self: *Logger, comptime fmt: []const u8, args: anytype) void {
-        var buf: [2048]u8 = undefined;
-        const msg = std.fmt.bufPrint(&buf, fmt, args) catch return;
+        const buf = self.allocator.alloc(u8, self.buffer_size) catch return;
+        defer self.allocator.free(buf);
+        const msg = std.fmt.bufPrint(buf, fmt, args) catch return;
         self.logError(msg);
     }
 
     /// Log verbose (only if verbose mode enabled)
     pub fn logVerbose(self: *Logger, msg: []const u8) void {
         if (self.verbose) {
-            var buf: [2048]u8 = undefined;
-            const verbose_msg = std.fmt.bufPrint(&buf, "VERBOSE: {s}", .{msg}) catch return;
+            const buf = self.allocator.alloc(u8, self.buffer_size) catch return;
+            defer self.allocator.free(buf);
+            const verbose_msg = std.fmt.bufPrint(buf, "VERBOSE: {s}", .{msg}) catch return;
             self.say(verbose_msg);
         }
     }

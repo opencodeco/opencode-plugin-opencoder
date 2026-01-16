@@ -271,6 +271,7 @@ fn createTestLogger(allocator: Allocator) !*Logger {
         .cycle = 0,
         .verbose = false,
         .allocator = allocator,
+        .buffer_size = 2048,
     };
     return logger_ptr;
 }
@@ -299,6 +300,9 @@ test "Executor.init creates executor" {
         .max_retries = 3,
         .backoff_base = 1,
         .log_retention = 30,
+        .max_file_size = 1024 * 1024,
+        .log_buffer_size = 2048,
+        .task_pause_seconds = 2,
     };
 
     const executor = Executor.init(&test_cfg, test_logger, allocator);
@@ -320,6 +324,9 @@ test "Executor.initWithCmd creates executor with custom command" {
         .max_retries = 3,
         .backoff_base = 1,
         .log_retention = 30,
+        .max_file_size = 1024 * 1024,
+        .log_buffer_size = 2048,
+        .task_pause_seconds = 2,
     };
 
     const executor = Executor.initWithCmd(&test_cfg, test_logger, allocator, "./test_helpers/mock_opencode.sh");
@@ -345,6 +352,9 @@ test "runOpencode handles successful execution" {
         .max_retries = 3,
         .backoff_base = 1,
         .log_retention = 30,
+        .max_file_size = 1024 * 1024,
+        .log_buffer_size = 2048,
+        .task_pause_seconds = 2,
     };
 
     // Get absolute path to mock script
@@ -377,6 +387,9 @@ test "runOpencode handles process failure" {
         .max_retries = 3,
         .backoff_base = 1,
         .log_retention = 30,
+        .max_file_size = 1024 * 1024,
+        .log_buffer_size = 2048,
+        .task_pause_seconds = 2,
     };
 
     // Get absolute path to mock script
@@ -406,6 +419,9 @@ test "runOpencode passes session ID when continuing" {
         .max_retries = 3,
         .backoff_base = 1,
         .log_retention = 30,
+        .max_file_size = 1024 * 1024,
+        .log_buffer_size = 2048,
+        .task_pause_seconds = 2,
     };
 
     // Get absolute path to mock script

@@ -89,7 +89,7 @@ pub const Loop = struct {
                 }
 
                 // Validate plan content
-                const plan_content = fsutil.readFile(self.paths.current_plan, self.allocator) catch {
+                const plan_content = fsutil.readFile(self.paths.current_plan, self.allocator, self.cfg.max_file_size) catch {
                     self.log.logError("Failed to read plan file");
                     self.backoffSleep();
                     continue;
@@ -115,7 +115,7 @@ pub const Loop = struct {
             self.log.logFmt("[Cycle {d}] Executing tasks...", .{self.st.cycle});
 
             while (!shutdown_requested) {
-                const plan_content = fsutil.readFile(self.paths.current_plan, self.allocator) catch {
+                const plan_content = fsutil.readFile(self.paths.current_plan, self.allocator, self.cfg.max_file_size) catch {
                     self.log.logError("Failed to read plan file");
                     break;
                 };
@@ -162,14 +162,14 @@ pub const Loop = struct {
                 }
 
                 // Mark task complete regardless of result to not get stuck
-                plan.markTaskComplete(self.paths.current_plan, task.line_number, self.allocator) catch {
+                plan.markTaskComplete(self.paths.current_plan, task.line_number, self.allocator, self.cfg.max_file_size) catch {
                     self.log.logError("Failed to mark task complete");
                 };
 
                 try self.st.save(self.paths.state_file, self.allocator);
 
                 // Small pause between tasks
-                std.Thread.sleep(2 * std.time.ns_per_s);
+                std.Thread.sleep(self.cfg.task_pause_seconds * std.time.ns_per_s);
             }
 
             // Evaluation phase
@@ -178,6 +178,7 @@ pub const Loop = struct {
                 self.paths.current_plan,
                 self.st.cycle,
                 self.allocator,
+                self.cfg.max_file_size,
             ) catch |err| {
                 self.log.logErrorFmt("Evaluation error: {}", .{err});
                 // Default to needs_work on error
@@ -206,7 +207,7 @@ pub const Loop = struct {
                 self.executor.resetSession();
             } else {
                 // Check if there are actually pending tasks
-                if (!evaluator.hasPendingTasks(self.paths.current_plan, self.allocator)) {
+                if (!evaluator.hasPendingTasks(self.paths.current_plan, self.allocator, self.cfg.max_file_size)) {
                     self.log.sayFmt("[Cycle {d}] NEEDS_WORK but no tasks, starting new cycle", .{self.st.cycle});
 
                     // Archive and start fresh
@@ -294,6 +295,7 @@ fn createTestLogger(allocator: Allocator) !*Logger {
         .cycle = 0,
         .verbose = false,
         .allocator = allocator,
+        .buffer_size = 2048,
     };
     return logger_ptr;
 }
@@ -370,6 +372,9 @@ test "Loop.init creates loop with correct fields" {
         .max_retries = 3,
         .backoff_base = 5,
         .log_retention = 30,
+        .max_file_size = 1024 * 1024,
+        .log_buffer_size = 2048,
+        .task_pause_seconds = 2,
     };
 
     var test_state = state.State.default();
@@ -415,6 +420,9 @@ test "backoffSleep calculates correct sleep time" {
         .max_retries = 3,
         .backoff_base = 10,
         .log_retention = 30,
+        .max_file_size = 1024 * 1024,
+        .log_buffer_size = 2048,
+        .task_pause_seconds = 2,
     };
 
     var test_state = state.State.default();
@@ -465,6 +473,9 @@ test "Loop state transitions between phases" {
         .max_retries = 3,
         .backoff_base = 1,
         .log_retention = 30,
+        .max_file_size = 1024 * 1024,
+        .log_buffer_size = 2048,
+        .task_pause_seconds = 2,
     };
 
     var test_state = state.State.default();
@@ -519,6 +530,9 @@ test "Loop handles task counter increments" {
         .max_retries = 3,
         .backoff_base = 1,
         .log_retention = 30,
+        .max_file_size = 1024 * 1024,
+        .log_buffer_size = 2048,
+        .task_pause_seconds = 2,
     };
 
     var test_state = state.State.default();
@@ -571,6 +585,9 @@ test "Loop cycle reset on new cycle" {
         .max_retries = 3,
         .backoff_base = 1,
         .log_retention = 30,
+        .max_file_size = 1024 * 1024,
+        .log_buffer_size = 2048,
+        .task_pause_seconds = 2,
     };
 
     var test_state = state.State{

@@ -98,9 +98,9 @@ pub const State = struct {
     }
 
     /// Load state from JSON file
-    pub fn load(path: []const u8, allocator: Allocator) !?State {
+    pub fn load(path: []const u8, allocator: Allocator, max_size: usize) !?State {
         // Read file contents
-        const content = fsutil.readFile(path, allocator) catch |err| {
+        const content = fsutil.readFile(path, allocator, max_size) catch |err| {
             if (err == error.FileNotFound) {
                 return null;
             }
@@ -186,7 +186,7 @@ test "State save and load round-trip" {
     try state.save(test_path, allocator);
 
     // Load state
-    const loaded = try State.load(test_path, allocator);
+    const loaded = try State.load(test_path, allocator, 1024 * 1024);
     try std.testing.expect(loaded != null);
 
     const loaded_state = loaded.?;
@@ -206,7 +206,7 @@ test "State save and load round-trip" {
 
 test "State.load returns null for missing file" {
     const allocator = std.testing.allocator;
-    const result = try State.load("/tmp/nonexistent_state_file.json", allocator);
+    const result = try State.load("/tmp/nonexistent_state_file.json", allocator, 1024 * 1024);
     try std.testing.expectEqual(@as(?State, null), result);
 }
 
@@ -218,7 +218,7 @@ test "State.load returns null for invalid JSON" {
     try fsutil.writeFile(test_path, "not valid json {{{");
 
     // Load should return null
-    const result = try State.load(test_path, allocator);
+    const result = try State.load(test_path, allocator, 1024 * 1024);
     try std.testing.expectEqual(@as(?State, null), result);
 
     // Clean up

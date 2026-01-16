@@ -94,9 +94,9 @@ pub fn countTotalTasks(plan_content: []const u8) u32 {
 }
 
 /// Mark a task as complete at the given line number
-pub fn markTaskComplete(path: []const u8, line_number: usize, allocator: Allocator) !void {
+pub fn markTaskComplete(path: []const u8, line_number: usize, allocator: Allocator, max_size: usize) !void {
     // Read file
-    const content = try fsutil.readFile(path, allocator);
+    const content = try fsutil.readFile(path, allocator, max_size);
     defer allocator.free(content);
 
     // Build new content with task marked complete
