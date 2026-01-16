@@ -189,18 +189,24 @@ Using bcrypt for password hashing, JWT for tokens.
 
 ## Development
 
+Using Make (recommended):
+
 ```bash
-# Build debug version
-zig build
+make          # Build release version
+make test     # Run tests
+make lint     # Format and check code
+make clean    # Remove build artifacts
+make install  # Install to /usr/local/bin
+make install PREFIX=~/.local  # Install to custom location
+```
 
-# Run tests
-zig build test
+Or using Zig directly:
 
-# Check formatting
-zig fmt --check src/
-
-# Build release
-zig build -Doptimize=ReleaseSafe
+```bash
+zig build                        # Build debug version
+zig build -Doptimize=ReleaseSafe # Build release
+zig build test                   # Run tests
+zig fmt --check src/             # Check formatting
 ```
 
 ## License
