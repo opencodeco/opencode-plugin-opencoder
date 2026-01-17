@@ -4,6 +4,7 @@
 //! task execution, and evaluation phases.
 
 const std = @import("std");
+const posix = std.posix;
 const Allocator = std.mem.Allocator;
 
 const config = @import("config.zig");
@@ -22,6 +23,9 @@ pub const IdeaSelection = struct {
     reason: []const u8,
 };
 
+/// Graceful shutdown timeout in seconds
+const GRACEFUL_SHUTDOWN_TIMEOUT_SECS: u64 = 5;
+
 /// Executor for running opencode CLI commands
 pub const Executor = struct {
     cfg: *const config.Config,
@@ -29,6 +33,7 @@ pub const Executor = struct {
     allocator: Allocator,
     opencode_cmd: []const u8,
     current_child_pid: ?std.posix.pid_t,
+    current_child_pgid: ?std.posix.pid_t,
 
     /// Initialize executor
     pub fn init(cfg: *const config.Config, log: *Logger, allocator: Allocator) Executor {
@@ -38,6 +43,7 @@ pub const Executor = struct {
             .allocator = allocator,
             .opencode_cmd = "opencode",
             .current_child_pid = null,
+            .current_child_pgid = null,
         };
     }
 
@@ -49,6 +55,7 @@ pub const Executor = struct {
             .allocator = allocator,
             .opencode_cmd = opencode_cmd,
             .current_child_pid = null,
+            .current_child_pgid = null,
         };
     }
 
@@ -72,7 +79,7 @@ pub const Executor = struct {
 
     /// Run task execution
     pub fn runTask(self: *Executor, task_desc: []const u8, cycle: u32, task_num: u32, total_tasks: u32) !ExecutionResult {
-        self.log.statusFmt("[Cycle {d}] Task {d}/{d}: {s}", .{ cycle, task_num, total_tasks, task_desc });
+        self.log.sayFmt("[Cycle {d}] Task {d}/{d}: {s}", .{ cycle, task_num, total_tasks, task_desc });
 
         const prompt = try plan.generateExecutionPrompt(task_desc, self.cfg.user_hint, self.allocator);
         defer self.allocator.free(prompt);
@@ -210,14 +217,90 @@ pub const Executor = struct {
         return try self.runWithRetry(self.cfg.planning_model, title, prompt);
     }
 
-    /// Kill current child process if running
-    pub fn killCurrentChild(self: *Executor) void {
+    /// Check if a child process is still running
+    pub fn isChildRunning(self: *Executor) bool {
         if (self.current_child_pid) |pid| {
-            self.log.logFmt("Terminating child process (PID: {d})", .{pid});
-            std.posix.kill(pid, std.posix.SIG.TERM) catch |err| {
-                self.log.logErrorFmt("Failed to kill child process: {s}", .{@errorName(err)});
+            return posix.kill(pid, 0) == null;
+        }
+        return false;
+    }
+
+    /// Kill current child process gracefully (SIGTERM, then SIGKILL if needed)
+    pub fn killCurrentChild(self: *Executor) void {
+        if (self.current_child_pid == null) return;
+
+        // Try graceful shutdown first
+        const gracefully_terminated = self.terminateChildGracefully();
+
+        if (!gracefully_terminated) {
+            self.log.logError("Graceful termination timed out, forcing kill...");
+            self.killCurrentChildForce();
+        }
+
+        self.current_child_pid = null;
+        self.current_child_pgid = null;
+    }
+
+    /// Attempt to gracefully terminate the child process with timeout
+    /// Returns true if process terminated gracefully, false if force kill needed
+    fn terminateChildGracefully(self: *Executor) bool {
+        const pid = self.current_child_pid orelse return true;
+        const pgid = self.current_child_pgid;
+
+        // Send SIGTERM to the entire process group
+        if (pgid) |group| {
+            posix.kill(-group, posix.SIG.TERM) catch {};
+        } else {
+            posix.kill(pid, posix.SIG.TERM) catch {};
+        }
+
+        // Wait for process to terminate with timeout
+        const timeout_ns = GRACEFUL_SHUTDOWN_TIMEOUT_SECS * std.time.ns_per_s;
+        const start = std.time.nanoTimestamp();
+
+        while (std.time.nanoTimestamp() - start < timeout_ns) {
+            // Check if process is still running
+            if (posix.kill(pid, 0) == error.ProcessNotFound) {
+                self.log.logFmt("Child process (PID: {d}) terminated gracefully", .{pid});
+                return true;
+            }
+            // Sleep for a short interval before checking again
+            std.Thread.sleep(50 * std.time.ns_per_ms);
+        }
+
+        self.log.logErrorFmt("Child process (PID: {d}) did not terminate within {d}s, force killing...", .{
+            pid,
+            GRACEFUL_SHUTDOWN_TIMEOUT_SECS,
+        });
+        return false;
+    }
+
+    /// Force kill the current child process and its entire process group
+    fn killCurrentChildForce(self: *Executor) void {
+        const pid = self.current_child_pid orelse return;
+        const pgid = self.current_child_pgid;
+
+        // Send SIGKILL to the entire process group
+        if (pgid) |group| {
+            posix.kill(-group, posix.SIG.KILL) catch |err| {
+                self.log.logErrorFmt("Failed to kill process group {d}: {s}", .{ group, @errorName(err) });
             };
-            self.current_child_pid = null;
+        } else {
+            posix.kill(pid, posix.SIG.KILL) catch |err| {
+                self.log.logErrorFmt("Failed to kill process {d}: {s}", .{ pid, @errorName(err) });
+            };
+        }
+
+        // Wait for the process to be reaped
+        _ = posix.waitpid(pid, 0);
+
+        self.log.logFmt("Force killed child process (PID: {d})", .{pid});
+    }
+
+    /// Kill all child processes (for emergency shutdown)
+    pub fn killAllChildren(self: *Executor) void {
+        if (self.current_child_pid != null) {
+            self.killCurrentChild();
         }
     }
 
@@ -285,11 +368,18 @@ pub const Executor = struct {
         child.stderr_behavior = .Inherit;
         child.stdout_behavior = .Pipe;
 
+        // Create a new process group for the child so we can kill all descendants
+        child.pgid = 0; // 0 means child creates its own process group
+
         try child.spawn();
 
-        // Store PID for potential termination
+        // Store PID and PGID for potential termination
         self.current_child_pid = child.id;
-        defer self.current_child_pid = null;
+        self.current_child_pgid = child.id; // Child is leader of its own process group
+        defer {
+            self.current_child_pid = null;
+            self.current_child_pgid = null;
+        }
 
         // Read stdout
         var stdout_list = std.ArrayListUnmanaged(u8){};
