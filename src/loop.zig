@@ -18,6 +18,8 @@ const ExecutionResult = @import("executor.zig").ExecutionResult;
 
 /// Shutdown flag for signal handling
 var shutdown_requested: bool = false;
+/// Signal counter for force kill (2 Ctrl+C = force exit)
+var signal_count: u8 = 0;
 
 /// Main execution loop
 pub const Loop = struct {
@@ -59,13 +61,16 @@ pub const Loop = struct {
             self.log.sayFmt("Hint: {s}", .{hint});
         }
 
-        self.log.say("Running continuously (Ctrl+C to stop)");
+        self.log.say("Running continuously (Ctrl+C to stop, Ctrl+C twice to force)");
         self.log.say("");
 
         while (!shutdown_requested) {
             self.log.say("");
             self.log.sayFmt("[Cycle {d}]", .{self.st.cycle});
             self.log.setCycle(self.st.cycle);
+
+            // Check shutdown before starting any work
+            if (shutdown_requested) break;
 
             // Planning phase
             if (!fsutil.fileExists(self.paths.current_plan) or self.st.phase == .planning) {
@@ -132,6 +137,9 @@ pub const Loop = struct {
                 self.st.current_task_num = 0;
                 try self.st.save(self.paths.state_file, self.allocator);
             }
+
+            // Check shutdown before execution phase
+            if (shutdown_requested) break;
 
             // Execution phase
             self.log.logFmt("[Cycle {d}] Executing tasks...", .{self.st.cycle});
@@ -213,6 +221,9 @@ pub const Loop = struct {
                 std.Thread.sleep(self.cfg.task_pause_seconds * std.time.ns_per_s);
             }
 
+            // Check shutdown before evaluation
+            if (shutdown_requested) break;
+
             // Evaluation phase
             const eval_result = evaluator.evaluate(
                 self.executor,
@@ -253,7 +264,6 @@ pub const Loop = struct {
                 self.st.task_index = 0;
                 self.st.current_task_num = 0;
                 self.st.total_tasks = 0;
-                self.executor.resetSession();
             } else {
                 // Check if there are actually pending tasks
                 if (!evaluator.hasPendingTasks(self.paths.current_plan, self.allocator, self.cfg.max_file_size)) {
@@ -272,7 +282,6 @@ pub const Loop = struct {
                     self.st.task_index = 0;
                     self.st.current_task_num = 0;
                     self.st.total_tasks = 0;
-                    self.executor.resetSession();
                 } else {
                     self.log.sayFmt("[Cycle {d}] Needs more work, continuing", .{self.st.cycle});
                     self.st.phase = .execution;
@@ -281,6 +290,13 @@ pub const Loop = struct {
 
             try self.st.save(self.paths.state_file, self.allocator);
             self.log.sayFmt("[Cycle {d}] Complete", .{self.st.cycle -| 1});
+        }
+
+        // Kill any running child process on shutdown
+        if (shutdown_requested) {
+            self.log.say("");
+            self.log.say("Shutdown requested, cleaning up...");
+            self.executor.killCurrentChild();
         }
 
         self.log.say("");
@@ -307,7 +323,15 @@ pub fn setupSignalHandlers() void {
 
 fn handleSignal(sig: i32) callconv(std.builtin.CallingConvention.c) void {
     _ = sig;
+    signal_count += 1;
     shutdown_requested = true;
+
+    // On second signal, force exit immediately
+    if (signal_count >= 2) {
+        const stderr_file = std.fs.File{ .handle = posix.STDERR_FILENO };
+        _ = stderr_file.write("\n\nForce killing...\n") catch {};
+        posix.exit(130); // 128 + SIGINT(2) = 130
+    }
 }
 
 /// Request shutdown (for programmatic use)
@@ -456,7 +480,7 @@ test "Loop.init creates loop with correct fields" {
 test "backoffSleep calculates correct sleep time" {
     const allocator = std.testing.allocator;
 
-    // Create test dependencies with backoff_base = 10
+    // Create test dependencies with backoff_base = 1 for fast tests
     const test_logger = try createTestLogger(allocator);
     defer destroyTestLogger(test_logger, allocator);
 
@@ -470,7 +494,7 @@ test "backoffSleep calculates correct sleep time" {
         .verbose = false,
         .user_hint = null,
         .max_retries = 3,
-        .backoff_base = 10,
+        .backoff_base = 1,
         .log_retention = 30,
         .max_file_size = 1024 * 1024,
         .log_buffer_size = 2048,
@@ -492,19 +516,16 @@ test "backoffSleep calculates correct sleep time" {
         allocator,
     );
 
-    // Note: We can't easily test the actual sleep without waiting,
-    // but we can verify the calculation: backoff_base * 2 = 10 * 2 = 20 seconds
-    // The backoffSleep function uses: self.cfg.backoff_base * 2
-    try std.testing.expectEqual(@as(u32, 10), loop.cfg.backoff_base);
+    // The backoffSleep function uses: self.cfg.backoff_base * 2 = 1 * 2 = 2 seconds
+    try std.testing.expectEqual(@as(u32, 1), loop.cfg.backoff_base);
 
-    // Call backoffSleep - it should sleep for 20 seconds, but we can't verify timing in tests
-    // Just ensure it doesn't crash
+    // Call backoffSleep - it should sleep for 2 seconds
     const start = std.time.nanoTimestamp();
     loop.backoffSleep();
     const elapsed = std.time.nanoTimestamp() - start;
 
-    // Verify it actually slept (at least 19 seconds to account for scheduling)
-    try std.testing.expect(elapsed >= 19 * std.time.ns_per_s);
+    // Verify it actually slept (at least 1.9 seconds to account for scheduling)
+    try std.testing.expect(elapsed >= (19 * std.time.ns_per_s) / 10);
 }
 
 test "Loop state transitions between phases" {

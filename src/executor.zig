@@ -21,8 +21,8 @@ pub const Executor = struct {
     cfg: *const config.Config,
     log: *Logger,
     allocator: Allocator,
-    session_id: ?[]const u8,
     opencode_cmd: []const u8,
+    current_child_pid: ?std.posix.pid_t,
 
     /// Initialize executor
     pub fn init(cfg: *const config.Config, log: *Logger, allocator: Allocator) Executor {
@@ -30,8 +30,8 @@ pub const Executor = struct {
             .cfg = cfg,
             .log = log,
             .allocator = allocator,
-            .session_id = null,
             .opencode_cmd = "opencode",
+            .current_child_pid = null,
         };
     }
 
@@ -41,16 +41,14 @@ pub const Executor = struct {
             .cfg = cfg,
             .log = log,
             .allocator = allocator,
-            .session_id = null,
             .opencode_cmd = opencode_cmd,
+            .current_child_pid = null,
         };
     }
 
     /// Cleanup executor resources
     pub fn deinit(self: *Executor) void {
-        if (self.session_id) |sid| {
-            self.allocator.free(sid);
-        }
+        _ = self;
     }
 
     /// Run planning phase
@@ -63,14 +61,7 @@ pub const Executor = struct {
         var title_buf: [64]u8 = undefined;
         const title = std.fmt.bufPrint(&title_buf, "Opencoder Planning Cycle {d}", .{cycle}) catch "Opencoder Planning";
 
-        const result = try self.runWithRetry(self.cfg.planning_model, title, prompt, false);
-
-        if (result == .success) {
-            // Reset session for new cycle
-            self.resetSession();
-        }
-
-        return result;
+        return try self.runWithRetry(self.cfg.planning_model, title, prompt);
     }
 
     /// Run task execution
@@ -83,15 +74,7 @@ pub const Executor = struct {
         var title_buf: [64]u8 = undefined;
         const title = std.fmt.bufPrint(&title_buf, "Opencoder Execution Cycle {d}", .{cycle}) catch "Opencoder Execution";
 
-        const continue_session = self.session_id != null;
-        const result = try self.runWithRetry(self.cfg.execution_model, title, prompt, continue_session);
-
-        if (result == .success and self.session_id == null) {
-            // Set session ID after first successful task (allocate owned memory)
-            self.session_id = try std.fmt.allocPrint(self.allocator, "ses_{d}", .{cycle});
-        }
-
-        return result;
+        return try self.runWithRetry(self.cfg.execution_model, title, prompt);
     }
 
     /// Run evaluation phase
@@ -110,7 +93,7 @@ pub const Executor = struct {
                 self.log.statusFmt("[Cycle {d}] Evaluation retry {d}/{d}", .{ cycle, attempt + 1, self.cfg.max_retries });
             }
 
-            const result = self.runOpencode(self.cfg.planning_model, title, prompt, false);
+            const result = self.runOpencode(self.cfg.planning_model, title, prompt);
             if (result) |output| {
                 // Check for COMPLETE or NEEDS_WORK in output
                 if (std.mem.indexOf(u8, output, "COMPLETE") != null) {
@@ -150,16 +133,19 @@ pub const Executor = struct {
         return "NEEDS_WORK";
     }
 
-    /// Reset session for new cycle
-    pub fn resetSession(self: *Executor) void {
-        if (self.session_id) |sid| {
-            self.allocator.free(sid);
+    /// Kill current child process if running
+    pub fn killCurrentChild(self: *Executor) void {
+        if (self.current_child_pid) |pid| {
+            self.log.logFmt("Terminating child process (PID: {d})", .{pid});
+            std.posix.kill(pid, std.posix.SIG.TERM) catch |err| {
+                self.log.logErrorFmt("Failed to kill child process: {s}", .{@errorName(err)});
+            };
+            self.current_child_pid = null;
         }
-        self.session_id = null;
     }
 
     // Internal helper to run with retry logic
-    fn runWithRetry(self: *Executor, model: []const u8, title: []const u8, prompt: []const u8, continue_session: bool) !ExecutionResult {
+    fn runWithRetry(self: *Executor, model: []const u8, title: []const u8, prompt: []const u8) !ExecutionResult {
         var attempt: u32 = 0;
 
         while (attempt < self.cfg.max_retries) : (attempt += 1) {
@@ -167,7 +153,7 @@ pub const Executor = struct {
                 self.log.logFmt("Retry attempt {d}/{d}", .{ attempt + 1, self.cfg.max_retries });
             }
 
-            const result = self.runOpencode(model, title, prompt, continue_session);
+            const result = self.runOpencode(model, title, prompt);
             if (result) |output| {
                 self.allocator.free(output);
                 return .success;
@@ -201,7 +187,7 @@ pub const Executor = struct {
     }
 
     // Run opencode CLI and return output
-    fn runOpencode(self: *Executor, model: []const u8, title: []const u8, prompt: []const u8, continue_session: bool) ![]u8 {
+    fn runOpencode(self: *Executor, model: []const u8, title: []const u8, prompt: []const u8) ![]u8 {
         var args = std.ArrayListUnmanaged([]const u8){};
         defer args.deinit(self.allocator);
 
@@ -211,14 +197,6 @@ pub const Executor = struct {
         try args.append(self.allocator, model);
         try args.append(self.allocator, "--title");
         try args.append(self.allocator, title);
-
-        if (continue_session) {
-            if (self.session_id) |sid| {
-                try args.append(self.allocator, "--session");
-                try args.append(self.allocator, sid);
-            }
-        }
-
         try args.append(self.allocator, prompt);
 
         self.log.logVerbose("Running opencode...");
@@ -231,6 +209,10 @@ pub const Executor = struct {
         child.stdout_behavior = .Pipe;
 
         try child.spawn();
+
+        // Store PID for potential termination
+        self.current_child_pid = child.id;
+        defer self.current_child_pid = null;
 
         // Read stdout
         var stdout_list = std.ArrayListUnmanaged(u8){};
@@ -354,7 +336,6 @@ test "Executor.init creates executor" {
 
     const executor = Executor.init(&test_cfg, test_logger, allocator);
     try std.testing.expectEqualStrings("opencode", executor.opencode_cmd);
-    try std.testing.expect(executor.session_id == null);
 }
 
 test "Executor.initWithCmd creates executor with custom command" {
@@ -413,7 +394,7 @@ test "runOpencode handles successful execution" {
     var executor = Executor.initWithCmd(&test_cfg, test_logger, allocator, mock_path);
     defer executor.deinit();
 
-    const result = try executor.runOpencode("test/model", "Test", "test prompt", false);
+    const result = try executor.runOpencode("test/model", "Test", "test prompt");
     defer allocator.free(result);
 
     try std.testing.expect(result.len > 0);
@@ -448,43 +429,6 @@ test "runOpencode handles process failure" {
     var executor = Executor.initWithCmd(&test_cfg, test_logger, allocator, mock_path);
     defer executor.deinit();
 
-    const result = executor.runOpencode("test/model", "Test", "test prompt", false);
+    const result = executor.runOpencode("test/model", "Test", "test prompt");
     try std.testing.expectError(error.OpencodeFailed, result);
-}
-
-test "runOpencode passes session ID when continuing" {
-    const allocator = std.testing.allocator;
-    const test_logger = try createTestLogger(allocator);
-    defer destroyTestLogger(test_logger, allocator);
-
-    const test_cfg = config.Config{
-        .planning_model = "test/model",
-        .execution_model = "test/model",
-        .project_dir = "/tmp",
-        .verbose = false,
-        .user_hint = null,
-        .max_retries = 3,
-        .backoff_base = 1,
-        .log_retention = 30,
-        .max_file_size = 1024 * 1024,
-        .log_buffer_size = 2048,
-        .task_pause_seconds = 2,
-    };
-
-    // Get absolute path to mock script
-    var cwd_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const cwd = try std.fs.cwd().realpath(".", &cwd_buf);
-    const mock_path = try std.fs.path.join(allocator, &.{ cwd, "test_helpers/mock_opencode_success.sh" });
-    defer allocator.free(mock_path);
-
-    var executor = Executor.initWithCmd(&test_cfg, test_logger, allocator, mock_path);
-    defer executor.deinit();
-
-    // Set a session ID
-    executor.session_id = try std.fmt.allocPrint(allocator, "test_session_123", .{});
-
-    const result = try executor.runOpencode("test/model", "Test", "test prompt", true);
-    defer allocator.free(result);
-
-    try std.testing.expect(result.len > 0);
 }
