@@ -16,6 +16,12 @@ pub const ExecutionResult = enum {
     failure,
 };
 
+/// Result of idea selection containing index and reason
+pub const IdeaSelection = struct {
+    index: usize,
+    reason: []const u8,
+};
+
 /// Executor for running opencode CLI commands
 pub const Executor = struct {
     cfg: *const config.Config,
@@ -131,6 +137,77 @@ pub const Executor = struct {
         self.log.logError("    - Evaluation prompt not producing expected output");
         self.log.logError("    - Network connectivity issues");
         return "NEEDS_WORK";
+    }
+
+    /// Run idea selection - AI picks simplest idea considering dependencies
+    /// Returns IdeaSelection with 0-indexed idea number and reason, or null if parsing fails
+    pub fn runIdeaSelection(self: *Executor, ideas_formatted: []const u8, cycle: u32) !?IdeaSelection {
+        self.log.statusFmt("[Cycle {d}] Selecting idea...", .{cycle});
+
+        const prompt = try plan.generateIdeaSelectionPrompt(ideas_formatted, self.allocator);
+        defer self.allocator.free(prompt);
+
+        var title_buf: [64]u8 = undefined;
+        const title = std.fmt.bufPrint(&title_buf, "Opencoder Idea Selection Cycle {d}", .{cycle}) catch "Opencoder Idea Selection";
+
+        // Run and capture output
+        const output = self.runOpencode(self.cfg.planning_model, title, prompt) catch |err| {
+            self.log.logErrorFmt("[Cycle {d}] Idea selection failed: {s}", .{ cycle, @errorName(err) });
+            return null;
+        };
+        defer self.allocator.free(output);
+
+        // Parse "SELECTED_IDEA: <number>" from output
+        var selected_index: ?usize = null;
+        if (std.mem.indexOf(u8, output, "SELECTED_IDEA:")) |start| {
+            const after_colon = output[start + 14 ..]; // Skip "SELECTED_IDEA:"
+            const trimmed = std.mem.trim(u8, after_colon, " \t\n\r");
+
+            // Parse the first number found
+            var end: usize = 0;
+            while (end < trimmed.len and trimmed[end] >= '0' and trimmed[end] <= '9') : (end += 1) {}
+
+            if (end > 0) {
+                const num = std.fmt.parseInt(usize, trimmed[0..end], 10) catch return null;
+                if (num >= 1) {
+                    selected_index = num - 1; // Convert to 0-indexed
+                }
+            }
+        }
+
+        if (selected_index == null) {
+            self.log.logError("Failed to parse SELECTED_IDEA from AI response");
+            return null;
+        }
+
+        // Parse "REASON: <text>" from output
+        var reason: []const u8 = "No reason provided";
+        if (std.mem.indexOf(u8, output, "REASON:")) |start| {
+            const after_colon = output[start + 7 ..]; // Skip "REASON:"
+            const trimmed = std.mem.trim(u8, after_colon, " \t");
+
+            // Find end of line or end of string
+            const end = std.mem.indexOf(u8, trimmed, "\n") orelse trimmed.len;
+            reason = std.mem.trim(u8, trimmed[0..end], " \t\n\r");
+        }
+
+        return IdeaSelection{
+            .index = selected_index.?,
+            .reason = try self.allocator.dupe(u8, reason),
+        };
+    }
+
+    /// Run planning phase for a specific idea
+    pub fn runIdeaPlanning(self: *Executor, idea_content: []const u8, idea_filename: []const u8, cycle: u32) !ExecutionResult {
+        self.log.statusFmt("[Cycle {d}] Planning for idea: {s}", .{ cycle, idea_filename });
+
+        const prompt = try plan.generateIdeaPlanningPrompt(cycle, idea_content, idea_filename, self.allocator);
+        defer self.allocator.free(prompt);
+
+        var title_buf: [64]u8 = undefined;
+        const title = std.fmt.bufPrint(&title_buf, "Opencoder Planning Cycle {d}", .{cycle}) catch "Opencoder Planning";
+
+        return try self.runWithRetry(self.cfg.planning_model, title, prompt);
     }
 
     /// Kill current child process if running
