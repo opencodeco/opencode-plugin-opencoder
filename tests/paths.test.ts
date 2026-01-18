@@ -543,10 +543,9 @@ describe("paths.mjs exports", () => {
 				expect(callCount).toBe(1) // Only initial attempt, no retries
 			})
 
-			it("should throw undefined when retries is negative (loop never executes)", async () => {
+			it("should clamp negative retries to 0 (only initial attempt)", async () => {
 				let callCount = 0
-				// With retries: -1, loop condition (0 <= -1) is false, so loop never runs
-				// lastError is undefined, so it throws undefined
+				// With retries: -1, sanitized to 0, so only initial attempt runs
 				await expect(
 					retryOnTransientError(
 						() => {
@@ -556,11 +555,11 @@ describe("paths.mjs exports", () => {
 						},
 						{ retries: -1 },
 					),
-				).rejects.toBeUndefined()
-				expect(callCount).toBe(0) // Loop never runs
+				).rejects.toThrow("EAGAIN")
+				expect(callCount).toBe(1) // Only initial attempt
 			})
 
-			it("should throw undefined when retries is -5 (loop never executes)", async () => {
+			it("should clamp retries -5 to 0 (only initial attempt)", async () => {
 				let callCount = 0
 				await expect(
 					retryOnTransientError(
@@ -571,8 +570,8 @@ describe("paths.mjs exports", () => {
 						},
 						{ retries: -5 },
 					),
-				).rejects.toBeUndefined()
-				expect(callCount).toBe(0) // Loop never runs
+				).rejects.toThrow("EAGAIN")
+				expect(callCount).toBe(1) // Only initial attempt
 			})
 
 			it("should handle initialDelayMs: 0 (no delay)", async () => {
@@ -615,10 +614,9 @@ describe("paths.mjs exports", () => {
 				expect(elapsed).toBeLessThan(50)
 			})
 
-			it("should throw undefined when retries is NaN (loop never executes)", async () => {
+			it("should handle NaN retries (falls back to default 3)", async () => {
 				let callCount = 0
-				// When retries is NaN, the loop condition (attempt <= retries) is always false
-				// So the loop never runs and lastError (undefined) is thrown
+				// When retries is NaN, it is sanitized to the default 3 retries
 				await expect(
 					retryOnTransientError(
 						() => {
@@ -628,8 +626,8 @@ describe("paths.mjs exports", () => {
 						},
 						{ retries: Number.NaN },
 					),
-				).rejects.toBeUndefined()
-				expect(callCount).toBe(0) // Loop never runs
+				).rejects.toThrow("EAGAIN")
+				expect(callCount).toBe(4) // Initial + 3 retries (default)
 			})
 
 			it("should handle non-numeric initialDelayMs (NaN falls back to default 100ms)", async () => {

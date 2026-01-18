@@ -181,9 +181,11 @@ export async function retryOnTransientError(fn, options = {}) {
 	const sanitizedDelayMs = Number.isNaN(initialDelayMs)
 		? 100
 		: Math.max(0, initialDelayMs)
+	// Sanitize retries: clamp negative to 0, handle NaN by using default
+	const sanitizedRetries = Number.isNaN(retries) ? 3 : Math.max(0, retries)
 	let lastError
 
-	for (let attempt = 0; attempt <= retries; attempt++) {
+	for (let attempt = 0; attempt <= sanitizedRetries; attempt++) {
 		try {
 			return await fn()
 		} catch (err) {
