@@ -2,11 +2,12 @@
  * Tests for git.ts module
  */
 
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import { execSync } from "node:child_process"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { generateCommitMessage, hasChanges } from "../src/git.ts"
+import { commitChanges, generateCommitMessage, hasChanges, pushChanges } from "../src/git.ts"
+import type { Logger } from "../src/logger.ts"
 
 const TEST_DIR = "/tmp/opencoder-test-git"
 
@@ -159,6 +160,170 @@ describe("git", () => {
 			expect(generateCommitMessage("FIX THE BUG")).toBe("fix: FIX THE BUG")
 			expect(generateCommitMessage("ADD NEW FEATURE")).toBe("feat: ADD NEW FEATURE")
 			expect(generateCommitMessage("REFACTOR CODE")).toBe("refactor: REFACTOR CODE")
+		})
+	})
+
+	describe("commitChanges", () => {
+		let mockLogger: Logger
+		let testGitDir: string
+
+		beforeEach(() => {
+			// Create mock logger
+			mockLogger = {
+				log: mock(() => {}),
+				logError: mock(() => {}),
+				logVerbose: mock(() => {}),
+				say: mock(() => {}),
+				info: mock(() => {}),
+				success: mock(() => {}),
+				warn: mock(() => {}),
+				alert: mock(() => {}),
+				flush: mock(() => {}),
+				setCycleLog: mock(() => {}),
+				cleanup: mock(() => 0),
+			} as unknown as Logger
+
+			// Create a test git repository
+			testGitDir = "/tmp/opencoder-test-git-commit"
+			if (existsSync(testGitDir)) {
+				rmSync(testGitDir, { recursive: true })
+			}
+			mkdirSync(testGitDir, { recursive: true })
+			execSync("git init", { cwd: testGitDir })
+			execSync('git config user.email "test@test.com"', { cwd: testGitDir })
+			execSync('git config user.name "Test User"', { cwd: testGitDir })
+		})
+
+		afterEach(() => {
+			if (existsSync(testGitDir)) {
+				rmSync(testGitDir, { recursive: true })
+			}
+		})
+
+		test("commits changes without signoff", () => {
+			// Create a file to commit
+			writeFileSync(join(testGitDir, "test.txt"), "test content")
+
+			commitChanges(testGitDir, mockLogger, "feat: add test file", false)
+
+			// Verify commit was created
+			const log = execSync("git log --oneline", { cwd: testGitDir, encoding: "utf-8" })
+			expect(log).toContain("feat: add test file")
+
+			// Verify logger was called
+			expect(mockLogger.log).toHaveBeenCalledWith("Committed: feat: add test file")
+
+			// Verify no signoff in commit message
+			const fullLog = execSync("git log --format=%B -n 1", {
+				cwd: testGitDir,
+				encoding: "utf-8",
+			})
+			expect(fullLog).not.toContain("Signed-off-by")
+		})
+
+		test("commits changes with signoff", () => {
+			// Create a file to commit
+			writeFileSync(join(testGitDir, "test2.txt"), "test content 2")
+
+			commitChanges(testGitDir, mockLogger, "fix: bug fix", true)
+
+			// Verify commit was created
+			const log = execSync("git log --oneline", { cwd: testGitDir, encoding: "utf-8" })
+			expect(log).toContain("fix: bug fix")
+
+			// Verify logger was called
+			expect(mockLogger.log).toHaveBeenCalledWith("Committed: fix: bug fix")
+
+			// Verify signoff in commit message
+			const fullLog = execSync("git log --format=%B -n 1", {
+				cwd: testGitDir,
+				encoding: "utf-8",
+			})
+			expect(fullLog).toContain("Signed-off-by: Test User <test@test.com>")
+		})
+
+		test("logs error when commit fails (no changes)", () => {
+			// Try to commit with no changes (should fail)
+			commitChanges(testGitDir, mockLogger, "feat: nothing to commit", false)
+
+			// Verify error was logged
+			expect(mockLogger.logError).toHaveBeenCalledWith(expect.stringContaining("Failed to commit"))
+		})
+
+		test("logs error for non-git directory", () => {
+			const nonGitDir = "/tmp/opencoder-test-non-git-commit"
+			if (existsSync(nonGitDir)) {
+				rmSync(nonGitDir, { recursive: true })
+			}
+			mkdirSync(nonGitDir, { recursive: true })
+
+			commitChanges(nonGitDir, mockLogger, "feat: test", false)
+
+			// Verify error was logged
+			expect(mockLogger.logError).toHaveBeenCalledWith(expect.stringContaining("Failed to commit"))
+
+			rmSync(nonGitDir, { recursive: true })
+		})
+	})
+
+	describe("pushChanges", () => {
+		let mockLogger: Logger
+		let testGitDir: string
+
+		beforeEach(() => {
+			// Create mock logger
+			mockLogger = {
+				log: mock(() => {}),
+				logError: mock(() => {}),
+				logVerbose: mock(() => {}),
+				say: mock(() => {}),
+				info: mock(() => {}),
+				success: mock(() => {}),
+				warn: mock(() => {}),
+				alert: mock(() => {}),
+				flush: mock(() => {}),
+				setCycleLog: mock(() => {}),
+				cleanup: mock(() => 0),
+			} as unknown as Logger
+
+			// Create a test git repository
+			testGitDir = "/tmp/opencoder-test-git-push"
+			if (existsSync(testGitDir)) {
+				rmSync(testGitDir, { recursive: true })
+			}
+			mkdirSync(testGitDir, { recursive: true })
+			execSync("git init", { cwd: testGitDir })
+			execSync('git config user.email "test@test.com"', { cwd: testGitDir })
+			execSync('git config user.name "Test User"', { cwd: testGitDir })
+		})
+
+		afterEach(() => {
+			if (existsSync(testGitDir)) {
+				rmSync(testGitDir, { recursive: true })
+			}
+		})
+
+		test("logs error when push fails (no remote)", () => {
+			// Try to push without remote configured (should fail)
+			pushChanges(testGitDir, mockLogger)
+
+			// Verify error was logged
+			expect(mockLogger.logError).toHaveBeenCalledWith(expect.stringContaining("Failed to push"))
+		})
+
+		test("logs error for non-git directory", () => {
+			const nonGitDir = "/tmp/opencoder-test-non-git-push"
+			if (existsSync(nonGitDir)) {
+				rmSync(nonGitDir, { recursive: true })
+			}
+			mkdirSync(nonGitDir, { recursive: true })
+
+			pushChanges(nonGitDir, mockLogger)
+
+			// Verify error was logged
+			expect(mockLogger.logError).toHaveBeenCalledWith(expect.stringContaining("Failed to push"))
+
+			rmSync(nonGitDir, { recursive: true })
 		})
 	})
 })
