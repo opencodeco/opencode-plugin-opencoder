@@ -2,9 +2,18 @@ import { describe, expect, it } from "bun:test"
 import { readdirSync } from "node:fs"
 import { join } from "node:path"
 import pkg from "../package.json"
-import { agents, description, name, version } from "../src/index.ts"
+import DefaultExport, { agents, description, name, OpenCoderPlugin, version } from "../src/index.ts"
 
 describe("index.ts exports", () => {
+	it("should export the plugin function as named export", () => {
+		expect(OpenCoderPlugin).toBeInstanceOf(Function)
+	})
+
+	it("should export the plugin function as default export", () => {
+		expect(DefaultExport).toBeInstanceOf(Function)
+		expect(DefaultExport).toBe(OpenCoderPlugin)
+	})
+
 	it("should export the plugin name from package.json", () => {
 		expect(name).toBe("opencode-plugin-opencoder")
 		expect(name).toBe(pkg.name)

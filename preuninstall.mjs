@@ -20,6 +20,9 @@ import {
 const packageRoot = getPackageRoot(import.meta.url)
 const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
 
+/** Check for --dry-run flag in command line arguments */
+const DRY_RUN = process.argv.includes("--dry-run")
+
 /**
  * Main entry point for the preuninstall script.
  *
@@ -39,24 +42,25 @@ const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
  *      some removals failed. This ensures npm uninstall completes.
  */
 function main() {
-	console.log("opencode-plugin-opencoder: Removing agents...")
+	const prefix = DRY_RUN ? "[DRY-RUN] " : ""
+	console.log(`${prefix}opencode-plugin-opencoder: Removing agents...`)
 
 	// Check if target directory exists
 	if (!existsSync(AGENTS_TARGET_DIR)) {
-		console.log("  No agents directory found, nothing to remove")
+		console.log(`${prefix}  No agents directory found, nothing to remove`)
 		return
 	}
 
 	// Get list of agents we installed (from source directory)
 	if (!existsSync(AGENTS_SOURCE_DIR)) {
-		console.log("  Source agents directory not found, skipping cleanup")
+		console.log(`${prefix}  Source agents directory not found, skipping cleanup`)
 		return
 	}
 
 	const agentFiles = readdirSync(AGENTS_SOURCE_DIR).filter((f) => f.endsWith(".md"))
 
 	if (agentFiles.length === 0) {
-		console.log("  No agent files to remove")
+		console.log(`${prefix}  No agent files to remove`)
 		return
 	}
 
@@ -67,21 +71,26 @@ function main() {
 
 		if (existsSync(targetPath)) {
 			try {
-				unlinkSync(targetPath)
-				console.log(`  Removed: ${file}`)
-				removedCount++
+				if (DRY_RUN) {
+					console.log(`${prefix}Would remove: ${targetPath}`)
+					removedCount++
+				} else {
+					unlinkSync(targetPath)
+					console.log(`  Removed: ${file}`)
+					removedCount++
+				}
 			} catch (err) {
 				const error = err instanceof Error ? err : new Error(String(err))
 				const message = getErrorMessage(error, file, targetPath)
-				console.error(`  Warning: Could not remove ${file}: ${message}`)
+				console.error(`${prefix}  Warning: Could not remove ${file}: ${message}`)
 			}
 		}
 	}
 
 	if (removedCount > 0) {
-		console.log(`\nopencode-plugin-opencoder: Removed ${removedCount} agent(s)`)
+		console.log(`\n${prefix}opencode-plugin-opencoder: Removed ${removedCount} agent(s)`)
 	} else {
-		console.log("\nopencode-plugin-opencoder: No agents were installed, nothing removed")
+		console.log(`\n${prefix}opencode-plugin-opencoder: No agents were installed, nothing removed`)
 	}
 }
 

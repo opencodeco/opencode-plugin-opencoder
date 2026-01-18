@@ -20,6 +20,9 @@ import {
 const packageRoot = getPackageRoot(import.meta.url)
 const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
 
+/** Check for --dry-run flag in command line arguments */
+const DRY_RUN = process.argv.includes("--dry-run")
+
 /** Minimum character count for valid agent files */
 const MIN_CONTENT_LENGTH = 100
 
@@ -89,17 +92,22 @@ function validateAgentContent(filePath) {
  *      or all file copies failed
  */
 function main() {
-	console.log("opencode-plugin-opencoder: Installing agents...")
+	const prefix = DRY_RUN ? "[DRY-RUN] " : ""
+	console.log(`${prefix}opencode-plugin-opencoder: Installing agents...`)
 
 	// Create target directory if it doesn't exist
 	if (!existsSync(AGENTS_TARGET_DIR)) {
-		mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
-		console.log(`  Created ${AGENTS_TARGET_DIR}`)
+		if (DRY_RUN) {
+			console.log(`${prefix}Would create ${AGENTS_TARGET_DIR}`)
+		} else {
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+			console.log(`  Created ${AGENTS_TARGET_DIR}`)
+		}
 	}
 
 	// Check if source directory exists
 	if (!existsSync(AGENTS_SOURCE_DIR)) {
-		console.error(`  Error: Source agents directory not found at ${AGENTS_SOURCE_DIR}`)
+		console.error(`${prefix}  Error: Source agents directory not found at ${AGENTS_SOURCE_DIR}`)
 		process.exit(1)
 	}
 
@@ -107,7 +115,7 @@ function main() {
 	const files = readdirSync(AGENTS_SOURCE_DIR).filter((f) => f.endsWith(".md"))
 
 	if (files.length === 0) {
-		console.error("  Error: No agent files found in agents/ directory")
+		console.error(`${prefix}  Error: No agent files found in agents/ directory`)
 		process.exit(1)
 	}
 
@@ -119,54 +127,68 @@ function main() {
 		const targetPath = join(AGENTS_TARGET_DIR, file)
 
 		try {
-			copyFileSync(sourcePath, targetPath)
+			if (DRY_RUN) {
+				// In dry-run mode, validate source file but don't copy
+				const validation = validateAgentContent(sourcePath)
+				if (!validation.valid) {
+					throw new Error(`Invalid agent file content: ${validation.error}`)
+				}
+				successes.push(file)
+				console.log(`${prefix}Would install: ${file} -> ${targetPath}`)
+			} else {
+				copyFileSync(sourcePath, targetPath)
 
-			// Verify the copy succeeded by comparing file sizes
-			const sourceSize = statSync(sourcePath).size
-			const targetSize = statSync(targetPath).size
+				// Verify the copy succeeded by comparing file sizes
+				const sourceSize = statSync(sourcePath).size
+				const targetSize = statSync(targetPath).size
 
-			if (sourceSize !== targetSize) {
-				throw new Error(
-					`File size mismatch: source=${sourceSize} bytes, target=${targetSize} bytes`,
-				)
+				if (sourceSize !== targetSize) {
+					throw new Error(
+						`File size mismatch: source=${sourceSize} bytes, target=${targetSize} bytes`,
+					)
+				}
+
+				// Validate content structure
+				const validation = validateAgentContent(targetPath)
+				if (!validation.valid) {
+					throw new Error(`Invalid agent file content: ${validation.error}`)
+				}
+
+				successes.push(file)
+				console.log(`  Installed: ${file}`)
 			}
-
-			// Validate content structure
-			const validation = validateAgentContent(targetPath)
-			if (!validation.valid) {
-				throw new Error(`Invalid agent file content: ${validation.error}`)
-			}
-
-			successes.push(file)
-			console.log(`  Installed: ${file}`)
 		} catch (err) {
 			const error = err instanceof Error ? err : new Error(String(err))
 			const message = getErrorMessage(error, file, targetPath)
 			failures.push({ file, message })
-			console.error(`  Failed: ${file} - ${message}`)
+			console.error(`${prefix}  Failed: ${file} - ${message}`)
 		}
 	}
 
 	// Print summary
 	console.log("")
 	if (successes.length > 0 && failures.length === 0) {
-		console.log(`opencode-plugin-opencoder: Successfully installed ${successes.length} agent(s)`)
-		console.log(`  Location: ${AGENTS_TARGET_DIR}`)
-		console.log("\nTo use the autonomous development loop, run:")
-		console.log("  opencode @opencoder")
+		console.log(
+			`${prefix}opencode-plugin-opencoder: Successfully installed ${successes.length} agent(s)`,
+		)
+		console.log(`${prefix}  Location: ${AGENTS_TARGET_DIR}`)
+		if (!DRY_RUN) {
+			console.log("\nTo use the autonomous development loop, run:")
+			console.log("  opencode @opencoder")
+		}
 	} else if (successes.length > 0 && failures.length > 0) {
 		console.log(
-			`opencode-plugin-opencoder: Installed ${successes.length} of ${files.length} agent(s)`,
+			`${prefix}opencode-plugin-opencoder: Installed ${successes.length} of ${files.length} agent(s)`,
 		)
-		console.log(`  Location: ${AGENTS_TARGET_DIR}`)
-		console.error(`\n  ${failures.length} file(s) failed to install:`)
+		console.log(`${prefix}  Location: ${AGENTS_TARGET_DIR}`)
+		console.error(`\n${prefix}  ${failures.length} file(s) failed to install:`)
 		for (const { file, message } of failures) {
-			console.error(`    - ${file}: ${message}`)
+			console.error(`${prefix}    - ${file}: ${message}`)
 		}
 	} else {
-		console.error("opencode-plugin-opencoder: Failed to install any agents")
+		console.error(`${prefix}opencode-plugin-opencoder: Failed to install any agents`)
 		for (const { file, message } of failures) {
-			console.error(`    - ${file}: ${message}`)
+			console.error(`${prefix}    - ${file}: ${message}`)
 		}
 		process.exit(1)
 	}
