@@ -22,8 +22,17 @@ export const REQUIRED_FRONTMATTER_FIELDS = ["version", "requires"]
  * Get the package root directory from a module's import.meta.url
  * @param {string} importMetaUrl - The import.meta.url of the calling module
  * @returns {string} The package root directory path
+ * @throws {TypeError} If importMetaUrl is not a non-empty string
  */
 export function getPackageRoot(importMetaUrl) {
+	if (typeof importMetaUrl !== "string") {
+		throw new TypeError(
+			`getPackageRoot: importMetaUrl must be a string, got ${importMetaUrl === null ? "null" : typeof importMetaUrl}`,
+		)
+	}
+	if (importMetaUrl.trim() === "") {
+		throw new TypeError("getPackageRoot: importMetaUrl must not be empty")
+	}
 	const __filename = fileURLToPath(importMetaUrl)
 	const __dirname = dirname(__filename)
 	// Both postinstall.mjs and preuninstall.mjs are in the package root
@@ -34,8 +43,17 @@ export function getPackageRoot(importMetaUrl) {
  * Get the source directory containing agent markdown files.
  * @param {string} packageRoot - The package root directory
  * @returns {string} Path to the agents source directory
+ * @throws {TypeError} If packageRoot is not a non-empty string
  */
 export function getAgentsSourceDir(packageRoot) {
+	if (typeof packageRoot !== "string") {
+		throw new TypeError(
+			`getAgentsSourceDir: packageRoot must be a string, got ${packageRoot === null ? "null" : typeof packageRoot}`,
+		)
+	}
+	if (packageRoot.trim() === "") {
+		throw new TypeError("getAgentsSourceDir: packageRoot must not be empty")
+	}
 	return join(packageRoot, "agents")
 }
 
@@ -337,8 +355,25 @@ function compareVersions(a, b) {
  * checkVersionCompatibility("^1.0.0", "2.0.0")  // false
  * checkVersionCompatibility("~1.2.0", "1.2.5")  // true
  * checkVersionCompatibility("~1.2.0", "1.3.0")  // false
+ * @throws {TypeError} If required or current is not a non-empty string
  */
 export function checkVersionCompatibility(required, current) {
+	if (typeof required !== "string") {
+		throw new TypeError(
+			`checkVersionCompatibility: required must be a string, got ${required === null ? "null" : typeof required}`,
+		)
+	}
+	if (required.trim() === "") {
+		throw new TypeError("checkVersionCompatibility: required must not be empty")
+	}
+	if (typeof current !== "string") {
+		throw new TypeError(
+			`checkVersionCompatibility: current must be a string, got ${current === null ? "null" : typeof current}`,
+		)
+	}
+	if (current.trim() === "") {
+		throw new TypeError("checkVersionCompatibility: current must not be empty")
+	}
 	const currentVersion = parseVersion(current)
 	if (!currentVersion) return false
 
@@ -431,8 +466,14 @@ export function checkVersionCompatibility(required, current) {
  * // Parse custom arguments
  * const flags = parseCliFlags(["node", "script.js", "--verbose", "--dry-run"])
  * // flags = { dryRun: true, verbose: true, help: false }
+ * @throws {TypeError} If argv is not an array
  */
 export function parseCliFlags(argv) {
+	if (!Array.isArray(argv)) {
+		throw new TypeError(
+			`parseCliFlags: argv must be an array, got ${argv === null ? "null" : typeof argv}`,
+		)
+	}
 	return {
 		dryRun: argv.includes("--dry-run"),
 		verbose: argv.includes("--verbose"),

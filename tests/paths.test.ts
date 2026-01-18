@@ -48,6 +48,41 @@ describe("paths.mjs exports", () => {
 			const result2 = getPackageRoot(import.meta.url)
 			expect(result1).toBe(result2)
 		})
+
+		it("should throw TypeError for null input", () => {
+			expect(() => getPackageRoot(null as unknown as string)).toThrow(TypeError)
+			expect(() => getPackageRoot(null as unknown as string)).toThrow(
+				"getPackageRoot: importMetaUrl must be a string, got null",
+			)
+		})
+
+		it("should throw TypeError for undefined input", () => {
+			expect(() => getPackageRoot(undefined as unknown as string)).toThrow(TypeError)
+			expect(() => getPackageRoot(undefined as unknown as string)).toThrow(
+				"getPackageRoot: importMetaUrl must be a string, got undefined",
+			)
+		})
+
+		it("should throw TypeError for non-string input", () => {
+			expect(() => getPackageRoot(123 as unknown as string)).toThrow(TypeError)
+			expect(() => getPackageRoot(123 as unknown as string)).toThrow(
+				"getPackageRoot: importMetaUrl must be a string, got number",
+			)
+			expect(() => getPackageRoot({} as unknown as string)).toThrow(TypeError)
+			expect(() => getPackageRoot({} as unknown as string)).toThrow(
+				"getPackageRoot: importMetaUrl must be a string, got object",
+			)
+		})
+
+		it("should throw TypeError for empty string input", () => {
+			expect(() => getPackageRoot("")).toThrow(TypeError)
+			expect(() => getPackageRoot("")).toThrow("getPackageRoot: importMetaUrl must not be empty")
+		})
+
+		it("should throw TypeError for whitespace-only string input", () => {
+			expect(() => getPackageRoot("   ")).toThrow(TypeError)
+			expect(() => getPackageRoot("   ")).toThrow("getPackageRoot: importMetaUrl must not be empty")
+		})
 	})
 
 	describe("getAgentsSourceDir", () => {
@@ -81,6 +116,45 @@ describe("paths.mjs exports", () => {
 			const packageRoot = "/path/with spaces/package"
 			const result = getAgentsSourceDir(packageRoot)
 			expect(result).toBe(join(packageRoot, "agents"))
+		})
+
+		it("should throw TypeError for null input", () => {
+			expect(() => getAgentsSourceDir(null as unknown as string)).toThrow(TypeError)
+			expect(() => getAgentsSourceDir(null as unknown as string)).toThrow(
+				"getAgentsSourceDir: packageRoot must be a string, got null",
+			)
+		})
+
+		it("should throw TypeError for undefined input", () => {
+			expect(() => getAgentsSourceDir(undefined as unknown as string)).toThrow(TypeError)
+			expect(() => getAgentsSourceDir(undefined as unknown as string)).toThrow(
+				"getAgentsSourceDir: packageRoot must be a string, got undefined",
+			)
+		})
+
+		it("should throw TypeError for non-string input", () => {
+			expect(() => getAgentsSourceDir(123 as unknown as string)).toThrow(TypeError)
+			expect(() => getAgentsSourceDir(123 as unknown as string)).toThrow(
+				"getAgentsSourceDir: packageRoot must be a string, got number",
+			)
+			expect(() => getAgentsSourceDir({} as unknown as string)).toThrow(TypeError)
+			expect(() => getAgentsSourceDir({} as unknown as string)).toThrow(
+				"getAgentsSourceDir: packageRoot must be a string, got object",
+			)
+		})
+
+		it("should throw TypeError for empty string input", () => {
+			expect(() => getAgentsSourceDir("")).toThrow(TypeError)
+			expect(() => getAgentsSourceDir("")).toThrow(
+				"getAgentsSourceDir: packageRoot must not be empty",
+			)
+		})
+
+		it("should throw TypeError for whitespace-only string input", () => {
+			expect(() => getAgentsSourceDir("   ")).toThrow(TypeError)
+			expect(() => getAgentsSourceDir("   ")).toThrow(
+				"getAgentsSourceDir: packageRoot must not be empty",
+			)
 		})
 	})
 
@@ -790,14 +864,94 @@ This is a test agent that handles various tasks.
 				expect(checkVersionCompatibility(">=1.0.0", "invalid")).toBe(false)
 				expect(checkVersionCompatibility(">=1.0.0", "1.0")).toBe(false)
 				expect(checkVersionCompatibility(">=1.0.0", "1")).toBe(false)
-				expect(checkVersionCompatibility(">=1.0.0", "")).toBe(false)
 			})
 
 			it("should return false for invalid required version", () => {
 				expect(checkVersionCompatibility("invalid", "1.0.0")).toBe(false)
 				expect(checkVersionCompatibility(">=invalid", "1.0.0")).toBe(false)
 				expect(checkVersionCompatibility("^", "1.0.0")).toBe(false)
-				expect(checkVersionCompatibility("", "1.0.0")).toBe(false)
+			})
+
+			it("should throw TypeError for null required", () => {
+				expect(() => checkVersionCompatibility(null as unknown as string, "1.0.0")).toThrow(
+					TypeError,
+				)
+				expect(() => checkVersionCompatibility(null as unknown as string, "1.0.0")).toThrow(
+					"checkVersionCompatibility: required must be a string, got null",
+				)
+			})
+
+			it("should throw TypeError for undefined required", () => {
+				expect(() => checkVersionCompatibility(undefined as unknown as string, "1.0.0")).toThrow(
+					TypeError,
+				)
+				expect(() => checkVersionCompatibility(undefined as unknown as string, "1.0.0")).toThrow(
+					"checkVersionCompatibility: required must be a string, got undefined",
+				)
+			})
+
+			it("should throw TypeError for non-string required", () => {
+				expect(() => checkVersionCompatibility(123 as unknown as string, "1.0.0")).toThrow(
+					TypeError,
+				)
+				expect(() => checkVersionCompatibility(123 as unknown as string, "1.0.0")).toThrow(
+					"checkVersionCompatibility: required must be a string, got number",
+				)
+			})
+
+			it("should throw TypeError for empty string required", () => {
+				expect(() => checkVersionCompatibility("", "1.0.0")).toThrow(TypeError)
+				expect(() => checkVersionCompatibility("", "1.0.0")).toThrow(
+					"checkVersionCompatibility: required must not be empty",
+				)
+			})
+
+			it("should throw TypeError for whitespace-only required", () => {
+				expect(() => checkVersionCompatibility("   ", "1.0.0")).toThrow(TypeError)
+				expect(() => checkVersionCompatibility("   ", "1.0.0")).toThrow(
+					"checkVersionCompatibility: required must not be empty",
+				)
+			})
+
+			it("should throw TypeError for null current", () => {
+				expect(() => checkVersionCompatibility(">=1.0.0", null as unknown as string)).toThrow(
+					TypeError,
+				)
+				expect(() => checkVersionCompatibility(">=1.0.0", null as unknown as string)).toThrow(
+					"checkVersionCompatibility: current must be a string, got null",
+				)
+			})
+
+			it("should throw TypeError for undefined current", () => {
+				expect(() => checkVersionCompatibility(">=1.0.0", undefined as unknown as string)).toThrow(
+					TypeError,
+				)
+				expect(() => checkVersionCompatibility(">=1.0.0", undefined as unknown as string)).toThrow(
+					"checkVersionCompatibility: current must be a string, got undefined",
+				)
+			})
+
+			it("should throw TypeError for non-string current", () => {
+				expect(() => checkVersionCompatibility(">=1.0.0", 100 as unknown as string)).toThrow(
+					TypeError,
+				)
+				expect(() => checkVersionCompatibility(">=1.0.0", 100 as unknown as string)).toThrow(
+					"checkVersionCompatibility: current must be a string, got number",
+				)
+			})
+
+			it("should throw TypeError for empty string current", () => {
+				expect(() => checkVersionCompatibility(">=1.0.0", "")).toThrow(TypeError)
+				expect(() => checkVersionCompatibility(">=1.0.0", "")).toThrow(
+					"checkVersionCompatibility: current must not be empty",
+				)
+			})
+
+			it("should throw TypeError for whitespace-only current", () => {
+				expect(() => checkVersionCompatibility(">=1.0.0", "   ")).toThrow(TypeError)
+				expect(() => checkVersionCompatibility(">=1.0.0", "   ")).toThrow(
+					"checkVersionCompatibility: current must not be empty",
+				)
 			})
 		})
 	})
@@ -860,6 +1014,35 @@ This is a test agent that handles various tasks.
 			const result = parseCliFlags(["node", "script.js", "--dry-run-test", "--verbosity"])
 			expect(result.dryRun).toBe(false)
 			expect(result.verbose).toBe(false)
+		})
+
+		it("should throw TypeError for null input", () => {
+			expect(() => parseCliFlags(null as unknown as string[])).toThrow(TypeError)
+			expect(() => parseCliFlags(null as unknown as string[])).toThrow(
+				"parseCliFlags: argv must be an array, got null",
+			)
+		})
+
+		it("should throw TypeError for undefined input", () => {
+			expect(() => parseCliFlags(undefined as unknown as string[])).toThrow(TypeError)
+			expect(() => parseCliFlags(undefined as unknown as string[])).toThrow(
+				"parseCliFlags: argv must be an array, got undefined",
+			)
+		})
+
+		it("should throw TypeError for non-array input", () => {
+			expect(() => parseCliFlags("string" as unknown as string[])).toThrow(TypeError)
+			expect(() => parseCliFlags("string" as unknown as string[])).toThrow(
+				"parseCliFlags: argv must be an array, got string",
+			)
+			expect(() => parseCliFlags(123 as unknown as string[])).toThrow(TypeError)
+			expect(() => parseCliFlags(123 as unknown as string[])).toThrow(
+				"parseCliFlags: argv must be an array, got number",
+			)
+			expect(() => parseCliFlags({} as unknown as string[])).toThrow(TypeError)
+			expect(() => parseCliFlags({} as unknown as string[])).toThrow(
+				"parseCliFlags: argv must be an array, got object",
+			)
 		})
 	})
 
