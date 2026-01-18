@@ -19,6 +19,9 @@ const DEFAULT_METRICS: Metrics = {
 	ideasProcessed: 0,
 	totalCycleDurationMs: 0,
 	lastActivityTime: "",
+	totalInputTokens: 0,
+	totalOutputTokens: 0,
+	totalCostUsd: 0,
 }
 
 /**
@@ -48,6 +51,9 @@ export async function loadMetrics(metricsFile: string): Promise<Metrics> {
 			totalCycleDurationMs: parsed.totalCycleDurationMs ?? DEFAULT_METRICS.totalCycleDurationMs,
 			firstRunTime: parsed.firstRunTime,
 			lastActivityTime: parsed.lastActivityTime ?? getISOTimestamp(),
+			totalInputTokens: parsed.totalInputTokens ?? DEFAULT_METRICS.totalInputTokens,
+			totalOutputTokens: parsed.totalOutputTokens ?? DEFAULT_METRICS.totalOutputTokens,
+			totalCostUsd: parsed.totalCostUsd ?? DEFAULT_METRICS.totalCostUsd,
 		}
 	} catch {
 		// Invalid JSON, return defaults
@@ -162,6 +168,28 @@ export function recordIdeaProcessed(metrics: Metrics): Metrics {
 }
 
 /**
+ * Record token usage and cost for an operation.
+ * @param metrics - Current metrics
+ * @param inputTokens - Number of input tokens used
+ * @param outputTokens - Number of output tokens used
+ * @param costUsd - Estimated cost in USD
+ * @returns Updated metrics
+ */
+export function recordTokenUsage(
+	metrics: Metrics,
+	inputTokens: number,
+	outputTokens: number,
+	costUsd: number,
+): Metrics {
+	return {
+		...metrics,
+		totalInputTokens: metrics.totalInputTokens + inputTokens,
+		totalOutputTokens: metrics.totalOutputTokens + outputTokens,
+		totalCostUsd: metrics.totalCostUsd + costUsd,
+	}
+}
+
+/**
  * Get average cycle duration in milliseconds.
  * @param metrics - Current metrics
  * @returns Average duration or 0 if no cycles completed
@@ -202,6 +230,8 @@ export function formatMetricsSummary(metrics: Metrics): string {
 		`Retries: ${metrics.totalRetries} total`,
 		`Ideas: ${metrics.ideasProcessed} processed`,
 		`Avg cycle duration: ${avgDurationStr}`,
+		`Tokens: ${formatTokenCount(metrics.totalInputTokens)} in, ${formatTokenCount(metrics.totalOutputTokens)} out`,
+		`Estimated cost: ${formatCost(metrics.totalCostUsd)}`,
 	]
 
 	if (metrics.firstRunTime) {
@@ -209,6 +239,33 @@ export function formatMetricsSummary(metrics: Metrics): string {
 	}
 
 	return lines.join("\n")
+}
+
+/**
+ * Format token count in a human-readable way.
+ * @param tokens - Number of tokens
+ * @returns Formatted string (e.g., "1.2M", "500K", "1,234")
+ */
+export function formatTokenCount(tokens: number): string {
+	if (tokens >= 1_000_000) {
+		return `${(tokens / 1_000_000).toFixed(1)}M`
+	}
+	if (tokens >= 1_000) {
+		return `${(tokens / 1_000).toFixed(1)}K`
+	}
+	return tokens.toLocaleString()
+}
+
+/**
+ * Format cost in USD.
+ * @param cost - Cost in USD
+ * @returns Formatted string (e.g., "$1.23", "$0.05")
+ */
+export function formatCost(cost: number): string {
+	if (cost < 0.01) {
+		return `$${cost.toFixed(4)}`
+	}
+	return `$${cost.toFixed(2)}`
 }
 
 /**
@@ -243,5 +300,8 @@ export function resetMetrics(): Metrics {
 		...DEFAULT_METRICS,
 		firstRunTime: getISOTimestamp(),
 		lastActivityTime: getISOTimestamp(),
+		totalInputTokens: 0,
+		totalOutputTokens: 0,
+		totalCostUsd: 0,
 	}
 }

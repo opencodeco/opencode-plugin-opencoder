@@ -35,6 +35,7 @@ import {
 	recordRetry,
 	recordTaskCompleted,
 	recordTaskFailed,
+	recordTokenUsage,
 	saveMetrics,
 } from "./metrics.ts"
 import { getTasks, getUncompletedTasks, markTaskComplete, validatePlan } from "./plan.ts"
@@ -271,6 +272,9 @@ async function runPlanPhase(
 	config: Config,
 	metrics: Metrics,
 ): Promise<Metrics> {
+	// Reset stats for this phase
+	builder.resetStats()
+
 	let planContent: string
 	let ideaToRemove: { path: string; filename: string } | null = null
 
@@ -398,6 +402,11 @@ async function runPlanPhase(
 	state.totalTasks = tasks.length
 	state.sessionId = builder.getSessionId()
 
+	// Log phase summary and record token usage
+	const stats = builder.getStats()
+	logger.summary(stats, "Plan")
+	metrics = recordTokenUsage(metrics, stats.inputTokens, stats.outputTokens, stats.costUsd)
+
 	return metrics
 }
 
@@ -412,6 +421,9 @@ async function runBuildPhase(
 	config: Config,
 	metrics: Metrics,
 ): Promise<Metrics> {
+	// Reset stats for this task
+	builder.resetStats()
+
 	// Ensure we have an active session (handles resume from saved state)
 	await builder.ensureSession(state.cycle, `Cycle ${state.cycle}`)
 	state.sessionId = builder.getSessionId()
@@ -469,6 +481,11 @@ async function runBuildPhase(
 
 		logger.success(`Task ${state.currentTaskNum}/${tasks.length} complete`)
 
+		// Log task summary and record token usage
+		const stats = builder.getStats()
+		logger.summary(stats, "Task")
+		metrics = recordTokenUsage(metrics, stats.inputTokens, stats.outputTokens, stats.costUsd)
+
 		// Record task completion in metrics
 		metrics = recordTaskCompleted(metrics)
 
@@ -479,7 +496,10 @@ async function runBuildPhase(
 		}
 	} else {
 		logger.logError(`Task failed: ${result.error}`)
-		// Continue to next task or retry logic could go here
+		// Log task summary even on failure
+		const stats = builder.getStats()
+		logger.summary(stats, "Task (failed)")
+		metrics = recordTokenUsage(metrics, stats.inputTokens, stats.outputTokens, stats.costUsd)
 	}
 
 	// Pause between tasks
@@ -501,6 +521,9 @@ async function runEvalPhase(
 	config: Config,
 	metrics: Metrics,
 ): Promise<Metrics> {
+	// Reset stats for this phase
+	builder.resetStats()
+
 	// Read current plan for eval
 	const planContent = await readFileOrNull(paths.currentPlan)
 	if (!planContent) {
@@ -513,6 +536,11 @@ async function runEvalPhase(
 	const response = await builder.runEval(state.cycle, planContent)
 	const result = parseEval(response)
 	const reason = extractEvalReason(response)
+
+	// Log eval summary and record token usage
+	const stats = builder.getStats()
+	logger.summary(stats, "Eval")
+	metrics = recordTokenUsage(metrics, stats.inputTokens, stats.outputTokens, stats.costUsd)
 
 	if (isComplete(result)) {
 		logger.success(`Cycle ${state.cycle} complete!`)
