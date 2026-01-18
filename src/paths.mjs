@@ -270,8 +270,14 @@ export function parseFrontmatter(content) {
  *
  * @param {string} content - The agent file content to validate
  * @returns {{ valid: boolean, error?: string }} Validation result with optional error message
+ * @throws {TypeError} If content is not a string
  */
 export function validateAgentContent(content) {
+	if (typeof content !== "string") {
+		throw new TypeError(
+			`validateAgentContent: content must be a string, got ${content === null ? "null" : typeof content}`,
+		)
+	}
 	// Check minimum length
 	if (content.length < MIN_CONTENT_LENGTH) {
 		return {

@@ -791,6 +791,48 @@ This is a test agent that handles various tasks.
 			const result = validateAgentContent(content)
 			expect(result.valid).toBe(true)
 		})
+
+		it("should throw TypeError for null input", () => {
+			expect(() => validateAgentContent(null as unknown as string)).toThrow(TypeError)
+			expect(() => validateAgentContent(null as unknown as string)).toThrow(
+				"validateAgentContent: content must be a string, got null",
+			)
+		})
+
+		it("should throw TypeError for undefined input", () => {
+			expect(() => validateAgentContent(undefined as unknown as string)).toThrow(TypeError)
+			expect(() => validateAgentContent(undefined as unknown as string)).toThrow(
+				"validateAgentContent: content must be a string, got undefined",
+			)
+		})
+
+		it("should throw TypeError for number input", () => {
+			expect(() => validateAgentContent(123 as unknown as string)).toThrow(TypeError)
+			expect(() => validateAgentContent(123 as unknown as string)).toThrow(
+				"validateAgentContent: content must be a string, got number",
+			)
+		})
+
+		it("should throw TypeError for object input", () => {
+			expect(() => validateAgentContent({} as unknown as string)).toThrow(TypeError)
+			expect(() => validateAgentContent({} as unknown as string)).toThrow(
+				"validateAgentContent: content must be a string, got object",
+			)
+		})
+
+		it("should throw TypeError for array input", () => {
+			expect(() => validateAgentContent([] as unknown as string)).toThrow(TypeError)
+			expect(() => validateAgentContent([] as unknown as string)).toThrow(
+				"validateAgentContent: content must be a string, got object",
+			)
+		})
+
+		it("should throw TypeError for boolean input", () => {
+			expect(() => validateAgentContent(true as unknown as string)).toThrow(TypeError)
+			expect(() => validateAgentContent(true as unknown as string)).toThrow(
+				"validateAgentContent: content must be a string, got boolean",
+			)
+		})
 	})
 
 	describe("checkVersionCompatibility", () => {
