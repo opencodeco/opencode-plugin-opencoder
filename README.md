@@ -148,7 +148,7 @@ OpenCoder implements an **agentic development loop** with three phases:
 
 ```
      +-------------+     +-------------+     +-------------+
-     |  Planning   |---->|    Build    |---->|    Eval     |
+     |     Plan    |---->|    Build    |---->|    Eval     |
      |    Phase    |     |    Phase    |     |    Phase    |
      +-------------+     +-------------+     +-------------+
             ^                                       |
@@ -271,7 +271,7 @@ opencoder -m anthropic/claude-sonnet-4
 
 ### How It Works
 
-1. **Before Planning** - OpenCoder checks `.opencode/opencoder/ideas/` for `.md` files
+1. **Before Plan** - OpenCoder checks `.opencode/opencoder/ideas/` for `.md` files
 2. **Smart Selection**:
    - **1 idea**: Uses it directly (no extra API call)
    - **2+ ideas**: AI evaluates all and picks the simplest/quick-win, considering dependencies
@@ -290,7 +290,7 @@ The AI prioritizes based on:
 ```
 [Cycle 5] Found 3 idea(s) in queue
 [Cycle 5] AI selected idea: fix-login-timeout.md
-[Cycle 5] Planning for: fix-login-timeout.md
+[Cycle 5] Plan for: fix-login-timeout.md
 [Cycle 5] Plan created with 3 tasks
 ```
 
