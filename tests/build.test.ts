@@ -187,6 +187,25 @@ describe("build", () => {
 
 			expect(result).toBe("Line 1\nLine 2\nLine 3\nNext part")
 		})
+
+		test("returns empty string for undefined input", () => {
+			const result = extractText(undefined)
+
+			expect(result).toBe("")
+		})
+
+		test("returns empty string for null input", () => {
+			const result = extractText(null)
+
+			expect(result).toBe("")
+		})
+
+		test("returns empty string for non-array input", () => {
+			// biome-ignore lint/suspicious/noExplicitAny: testing invalid input
+			const result = extractText({ type: "text", text: "not an array" } as any)
+
+			expect(result).toBe("")
+		})
 	})
 
 	describe("handleEvent", () => {
