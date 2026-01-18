@@ -1,7 +1,7 @@
 PREFIX ?= /usr/local
 VERSION ?= 1.0.0
 
-.PHONY: all dev test lint format clean install build-linux-x64 build-darwin-arm64 build-windows build-all
+.PHONY: all dev test test-coverage test-coverage-report lint format clean install build-linux-x64 build-darwin-arm64 build-windows build-all
 
 all:
 	bun build --compile --minify --sourcemap \
@@ -14,6 +14,12 @@ dev:
 test:
 	bun test
 
+test-coverage:
+	bun test --coverage
+
+test-coverage-report:
+	bun test --coverage --coverage-reporter=lcov
+
 lint:
 	bunx biome check src/ tests/
 
@@ -24,7 +30,7 @@ format:
 	bunx biome format --write src/ tests/
 
 clean:
-	rm -rf opencoder opencoder-* opencoder.exe node_modules bun.lockb
+	rm -rf opencoder opencoder-* opencoder.exe node_modules bun.lockb coverage/
 
 install: all
 	install -d $(PREFIX)/bin
