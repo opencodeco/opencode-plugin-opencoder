@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Opencoder - Autonomous development loop powered by OpenCode
+ * OpenCoder - Autonomous development loop powered by OpenCode
  *
  * Entry point for the CLI application.
  */

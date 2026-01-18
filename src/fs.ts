@@ -11,7 +11,9 @@ const OPENCODE_DIR = ".opencode"
 const OPENCODER_SUBDIR = "opencoder"
 
 /**
- * Initialize all workspace paths for a project
+ * Initialize all workspace paths for a project.
+ * @param projectDir - The root directory of the project
+ * @returns Paths object containing all workspace file and directory paths
  */
 export function initializePaths(projectDir: string): Paths {
 	const opencoderDir = join(resolve(projectDir), OPENCODE_DIR, OPENCODER_SUBDIR)
@@ -30,7 +32,9 @@ export function initializePaths(projectDir: string): Paths {
 }
 
 /**
- * Ensure all required directories exist
+ * Ensure all required directories exist.
+ * Creates the opencoder workspace directories if they don't exist.
+ * @param paths - Paths object from initializePaths
  */
 export function ensureDirectories(paths: Paths): void {
 	const directories = [
@@ -49,7 +53,9 @@ export function ensureDirectories(paths: Paths): void {
 }
 
 /**
- * Read a file, returning null if it doesn't exist
+ * Read a file, returning null if it doesn't exist.
+ * @param path - Absolute path to the file
+ * @returns File contents as string, or null if file doesn't exist or read fails
  */
 export async function readFileOrNull(path: string): Promise<string | null> {
 	try {
@@ -60,14 +66,19 @@ export async function readFileOrNull(path: string): Promise<string | null> {
 }
 
 /**
- * Write content to a file, creating parent directories if needed
+ * Write content to a file, creating parent directories if needed.
+ * @param path - Absolute path to the file
+ * @param content - Content to write
  */
 export async function writeFile(path: string, content: string): Promise<void> {
 	await Bun.write(path, content)
 }
 
 /**
- * Append content to a file
+ * Append content to a file.
+ * Creates the file if it doesn't exist.
+ * @param path - Absolute path to the file
+ * @param content - Content to append
  */
 export function appendToFile(path: string, content: string): void {
 	// Bun.write doesn't support append, so use node:fs for sync operation
@@ -76,14 +87,19 @@ export function appendToFile(path: string, content: string): void {
 }
 
 /**
- * Check if a path exists
+ * Check if a path exists.
+ * @param path - Path to check (file or directory)
+ * @returns True if the path exists, false otherwise
  */
 export function pathExists(path: string): boolean {
 	return existsSync(path)
 }
 
 /**
- * List files in a directory with optional extension filter
+ * List files in a directory with optional extension filter.
+ * @param dirPath - Path to the directory
+ * @param extension - Optional file extension to filter by (e.g., ".md")
+ * @returns Array of filenames (not full paths), or empty array if directory doesn't exist
  */
 export function listFiles(dirPath: string, extension?: string): string[] {
 	if (!existsSync(dirPath)) {
@@ -100,7 +116,9 @@ export function listFiles(dirPath: string, extension?: string): string[] {
 }
 
 /**
- * Get file modification time
+ * Get file modification time.
+ * @param path - Path to the file
+ * @returns Modification time in milliseconds since epoch, or 0 if file doesn't exist
  */
 export function getFileModTime(path: string): number {
 	try {
@@ -112,7 +130,9 @@ export function getFileModTime(path: string): number {
 }
 
 /**
- * Delete a file if it exists
+ * Delete a file if it exists.
+ * @param path - Path to the file to delete
+ * @returns True if file was deleted, false if it didn't exist or deletion failed
  */
 export function deleteFile(path: string): boolean {
 	try {
@@ -127,7 +147,10 @@ export function deleteFile(path: string): boolean {
 }
 
 /**
- * Rename/move a file
+ * Rename or move a file.
+ * @param oldPath - Current path of the file
+ * @param newPath - New path for the file
+ * @returns True if rename succeeded, false otherwise
  */
 export function renameFile(oldPath: string, newPath: string): boolean {
 	try {
@@ -139,7 +162,11 @@ export function renameFile(oldPath: string, newPath: string): boolean {
 }
 
 /**
- * Clean up old files in a directory based on age
+ * Clean up old files in a directory based on age.
+ * Deletes files with modification time older than the specified number of days.
+ * @param dirPath - Path to the directory to clean
+ * @param maxAgeDays - Maximum age in days; files older than this will be deleted
+ * @returns Number of files deleted
  */
 export function cleanupOldFiles(dirPath: string, maxAgeDays: number): number {
 	if (!existsSync(dirPath)) {
@@ -167,7 +194,8 @@ export function cleanupOldFiles(dirPath: string, maxAgeDays: number): number {
 }
 
 /**
- * Generate a timestamp string for filenames (YYYYMMDD_HHMMSS)
+ * Generate a timestamp string for filenames.
+ * @returns Timestamp in YYYYMMDD_HHMMSS format (e.g., "20240115_143025")
  */
 export function getTimestampForFilename(): string {
 	const now = new Date()
@@ -175,7 +203,8 @@ export function getTimestampForFilename(): string {
 }
 
 /**
- * Generate an ISO timestamp string
+ * Generate an ISO timestamp string.
+ * @returns Current time in ISO 8601 format (e.g., "2024-01-15T14:30:25.123Z")
  */
 export function getISOTimestamp(): string {
 	return new Date().toISOString()
