@@ -4,7 +4,7 @@
 
 import { appendFileSync, existsSync, readdirSync, renameSync, statSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
-import type { Paths } from "./types.ts"
+import type { Paths, SessionStats } from "./types.ts"
 
 /** ANSI escape codes for terminal formatting */
 const ANSI = {
@@ -336,6 +336,61 @@ export class Logger {
 		const detailStr = detail ? ` ${ANSI.dim}${detail}${ANSI.reset}` : ""
 		console.log(`${ANSI.blue}${SYMBOLS.arrow} ${action}${detailStr}${ANSI.reset}`)
 		this.writeToBuffer(this.formatForFile(`[ACTIVITY] ${action} ${detail || ""}`))
+	}
+
+	/**
+	 * Log a session/operation summary (shows stats at phase end)
+	 */
+	summary(stats: SessionStats, phase?: string): void {
+		this.stopSpinner()
+		const duration = Date.now() - stats.startTime
+		const durationStr = this.formatDurationMs(duration)
+
+		// Format token counts
+		const tokensStr = `${this.formatNum(stats.inputTokens)} in / ${this.formatNum(stats.outputTokens)} out`
+
+		// Format cost
+		const costStr =
+			stats.costUsd < 0.01 ? `$${stats.costUsd.toFixed(4)}` : `$${stats.costUsd.toFixed(2)}`
+
+		// Build summary line
+		const phaseStr = phase ? `${phase} ` : ""
+		const filesStr = stats.filesModified.length > 0 ? `, ${stats.filesModified.length} files` : ""
+
+		console.log(
+			`${ANSI.dim}  ${phaseStr}Summary: ${stats.toolCalls} tools, ${tokensStr}, ${costStr}, ${durationStr}${filesStr}${ANSI.reset}`,
+		)
+		this.writeToBuffer(
+			this.formatForFile(
+				`[SUMMARY] ${phaseStr}tools=${stats.toolCalls} tokens=${stats.inputTokens}/${stats.outputTokens} cost=${costStr} duration=${durationStr} files=${stats.filesModified.length}`,
+			),
+		)
+	}
+
+	/**
+	 * Format a number for display (e.g., 1234 -> "1.2K")
+	 */
+	private formatNum(n: number): string {
+		if (n >= 1_000_000) {
+			return `${(n / 1_000_000).toFixed(1)}M`
+		}
+		if (n >= 1_000) {
+			return `${(n / 1_000).toFixed(1)}K`
+		}
+		return n.toLocaleString()
+	}
+
+	/**
+	 * Format duration in milliseconds
+	 */
+	private formatDurationMs(ms: number): string {
+		const seconds = Math.floor(ms / 1000)
+		const minutes = Math.floor(seconds / 60)
+		if (minutes > 0) {
+			const remainingSeconds = seconds % 60
+			return `${minutes}m ${remainingSeconds}s`
+		}
+		return `${seconds}s`
 	}
 
 	/**
