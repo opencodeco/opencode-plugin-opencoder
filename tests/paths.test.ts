@@ -509,16 +509,18 @@ describe("paths.mjs exports", () => {
 	})
 
 	describe("parseFrontmatter", () => {
-		it("should return found: false when content does not start with ---", () => {
+		it("should return found: false with reason 'missing' when content does not start with ---", () => {
 			const result = parseFrontmatter("# No frontmatter")
 			expect(result.found).toBe(false)
+			expect(result.reason).toBe("missing")
 			expect(result.fields).toEqual({})
 			expect(result.endIndex).toBe(0)
 		})
 
-		it("should return found: false when closing --- is missing", () => {
+		it("should return found: false with reason 'unclosed' when closing --- is missing", () => {
 			const result = parseFrontmatter("---\nversion: 1.0\nno closing delimiter")
 			expect(result.found).toBe(false)
+			expect(result.reason).toBe("unclosed")
 			expect(result.fields).toEqual({})
 			expect(result.endIndex).toBe(0)
 		})
@@ -531,6 +533,7 @@ requires: opencode
 # Content`
 			const result = parseFrontmatter(content)
 			expect(result.found).toBe(true)
+			expect(result.reason).toBeUndefined()
 			expect(result.fields.version).toBe("1.0")
 			expect(result.fields.requires).toBe("opencode")
 		})
@@ -641,7 +644,7 @@ The agent can process multiple items efficiently.
 			expect(result.error).toContain(`minimum ${MIN_CONTENT_LENGTH}`)
 		})
 
-		it("should return valid: false when frontmatter is missing", () => {
+		it("should return valid: false with specific error when frontmatter is missing", () => {
 			const content =
 				"# No Frontmatter Agent\n\nThis agent has no frontmatter but is an agent for tasks.".padEnd(
 					MIN_CONTENT_LENGTH + 10,
@@ -649,7 +652,20 @@ The agent can process multiple items efficiently.
 				)
 			const result = validateAgentContent(content)
 			expect(result.valid).toBe(false)
-			expect(result.error).toContain("YAML frontmatter")
+			expect(result.error).toBe("File missing YAML frontmatter (must start with ---)")
+		})
+
+		it("should return valid: false with specific error when frontmatter is unclosed", () => {
+			const content = `---
+version: 1.0
+requires: opencode
+This file has no closing frontmatter delimiter.
+# Test Agent
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+			const result = validateAgentContent(content)
+			expect(result.valid).toBe(false)
+			expect(result.error).toBe("Unclosed YAML frontmatter (missing closing ---)")
 		})
 
 		it("should return valid: false when version field is missing", () => {

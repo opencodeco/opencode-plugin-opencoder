@@ -126,6 +126,8 @@ export function retryOnTransientError<T>(
 export interface ParseFrontmatterResult {
 	/** Whether frontmatter was found in the content */
 	found: boolean
+	/** Reason for failure when found is false: "missing" if content doesn't start with ---, "unclosed" if closing --- not found */
+	reason?: "missing" | "unclosed"
 	/** Parsed key-value pairs from the frontmatter */
 	fields: Record<string, string>
 	/** Character index where the frontmatter ends (after closing ---\n) */

@@ -201,18 +201,18 @@ export async function retryOnTransientError(fn, options = {}) {
  * Expects frontmatter to be delimited by --- at the start of the file.
  *
  * @param {string} content - The file content to parse
- * @returns {{ found: boolean, fields: Record<string, string>, endIndex: number }} Parse result
+ * @returns {{ found: boolean, reason?: "missing" | "unclosed", fields: Record<string, string>, endIndex: number }} Parse result
  */
 export function parseFrontmatter(content) {
 	// Frontmatter must start at the beginning of the file
 	if (!content.startsWith("---")) {
-		return { found: false, fields: {}, endIndex: 0 }
+		return { found: false, reason: "missing", fields: {}, endIndex: 0 }
 	}
 
 	// Find the closing ---
 	const endMatch = content.indexOf("\n---", 3)
 	if (endMatch === -1) {
-		return { found: false, fields: {}, endIndex: 0 }
+		return { found: false, reason: "unclosed", fields: {}, endIndex: 0 }
 	}
 
 	// Extract frontmatter content (between the --- delimiters)
@@ -271,9 +271,13 @@ export function validateAgentContent(content) {
 	// Check for YAML frontmatter
 	const frontmatter = parseFrontmatter(content)
 	if (!frontmatter.found) {
+		const errorMessage =
+			frontmatter.reason === "unclosed"
+				? "Unclosed YAML frontmatter (missing closing ---)"
+				: "File missing YAML frontmatter (must start with ---)"
 		return {
 			valid: false,
-			error: "File missing YAML frontmatter (must start with ---)",
+			error: errorMessage,
 		}
 	}
 
