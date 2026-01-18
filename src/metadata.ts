@@ -6,6 +6,7 @@
  */
 
 import pkg from "../package.json"
+import { AGENT_NAMES } from "./paths.mjs"
 
 /**
  * The plugin package name.
@@ -28,8 +29,10 @@ export const description = pkg.description
  * List of agent identifiers installed by this plugin.
  * These agents are copied to ~/.config/opencode/agents/ on install.
  *
+ * Re-exported from paths.mjs which is the single source of truth.
+ *
  * - `opencoder`: Main orchestrator running the Plan-Build-Commit loop
  * - `opencoder-planner`: Analyzes codebases and creates development plans
  * - `opencoder-builder`: Executes individual tasks with precision
  */
-export const agents = ["opencoder", "opencoder-planner", "opencoder-builder"]
+export const agents = AGENT_NAMES
