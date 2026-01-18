@@ -6,7 +6,13 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import { execSync } from "node:child_process"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { commitChanges, generateCommitMessage, hasChanges, pushChanges } from "../src/git.ts"
+import {
+	commitChanges,
+	generateCommitMessage,
+	hasChanges,
+	hasUnpushedCommits,
+	pushChanges,
+} from "../src/git.ts"
 import type { Logger } from "../src/logger.ts"
 
 const TEST_DIR = "/tmp/opencoder-test-git"
@@ -324,6 +330,128 @@ describe("git", () => {
 			expect(mockLogger.logError).toHaveBeenCalledWith(expect.stringContaining("Failed to push"))
 
 			rmSync(nonGitDir, { recursive: true })
+		})
+	})
+
+	describe("hasUnpushedCommits", () => {
+		let testGitDir: string
+
+		beforeEach(() => {
+			// Create a test git repository
+			testGitDir = "/tmp/opencoder-test-git-unpushed"
+			if (existsSync(testGitDir)) {
+				rmSync(testGitDir, { recursive: true })
+			}
+			mkdirSync(testGitDir, { recursive: true })
+			execSync("git init", { cwd: testGitDir })
+			execSync('git config user.email "test@test.com"', { cwd: testGitDir })
+			execSync('git config user.name "Test User"', { cwd: testGitDir })
+		})
+
+		afterEach(() => {
+			if (existsSync(testGitDir)) {
+				rmSync(testGitDir, { recursive: true })
+			}
+		})
+
+		test("returns false for non-git directory", () => {
+			const nonGitDir = "/tmp/opencoder-test-non-git-unpushed"
+			if (existsSync(nonGitDir)) {
+				rmSync(nonGitDir, { recursive: true })
+			}
+			mkdirSync(nonGitDir, { recursive: true })
+
+			expect(hasUnpushedCommits(nonGitDir)).toBe(false)
+
+			rmSync(nonGitDir, { recursive: true })
+		})
+
+		test("returns false for non-existent directory", () => {
+			expect(hasUnpushedCommits("/tmp/does-not-exist-xyz")).toBe(false)
+		})
+
+		test("returns false when no upstream is configured", () => {
+			// Create a commit but no upstream
+			writeFileSync(join(testGitDir, "test.txt"), "test content")
+			execSync("git add . && git commit -m 'Initial commit'", { cwd: testGitDir })
+
+			expect(hasUnpushedCommits(testGitDir)).toBe(false)
+		})
+
+		test("returns false for empty repo", () => {
+			expect(hasUnpushedCommits(testGitDir)).toBe(false)
+		})
+	})
+
+	describe("commitChanges with special characters", () => {
+		let mockLogger: Logger
+		let testGitDir: string
+
+		beforeEach(() => {
+			mockLogger = {
+				log: mock(() => {}),
+				logError: mock(() => {}),
+				logVerbose: mock(() => {}),
+				say: mock(() => {}),
+				info: mock(() => {}),
+				success: mock(() => {}),
+				warn: mock(() => {}),
+				alert: mock(() => {}),
+				flush: mock(() => {}),
+				setCycleLog: mock(() => {}),
+				cleanup: mock(() => 0),
+			} as unknown as Logger
+
+			testGitDir = "/tmp/opencoder-test-git-special"
+			if (existsSync(testGitDir)) {
+				rmSync(testGitDir, { recursive: true })
+			}
+			mkdirSync(testGitDir, { recursive: true })
+			execSync("git init", { cwd: testGitDir })
+			execSync('git config user.email "test@test.com"', { cwd: testGitDir })
+			execSync('git config user.name "Test User"', { cwd: testGitDir })
+		})
+
+		afterEach(() => {
+			if (existsSync(testGitDir)) {
+				rmSync(testGitDir, { recursive: true })
+			}
+		})
+
+		test("handles double quotes in commit message", () => {
+			writeFileSync(join(testGitDir, "test.txt"), "test content")
+
+			commitChanges(testGitDir, mockLogger, 'feat: add "quoted" feature', false)
+
+			const log = execSync("git log --oneline", { cwd: testGitDir, encoding: "utf-8" })
+			expect(log).toContain('add "quoted" feature')
+		})
+
+		test("handles dollar signs in commit message", () => {
+			writeFileSync(join(testGitDir, "test.txt"), "test content")
+
+			commitChanges(testGitDir, mockLogger, "feat: update $variable handling", false)
+
+			const log = execSync("git log --format=%B -n 1", { cwd: testGitDir, encoding: "utf-8" })
+			expect(log).toContain("$variable")
+		})
+
+		test("handles backticks in commit message", () => {
+			writeFileSync(join(testGitDir, "test.txt"), "test content")
+
+			commitChanges(testGitDir, mockLogger, "feat: add `code` formatting", false)
+
+			const log = execSync("git log --format=%B -n 1", { cwd: testGitDir, encoding: "utf-8" })
+			expect(log).toContain("`code`")
+		})
+
+		test("handles backslashes in commit message", () => {
+			writeFileSync(join(testGitDir, "test.txt"), "test content")
+
+			commitChanges(testGitDir, mockLogger, "feat: fix path\\to\\file handling", false)
+
+			const log = execSync("git log --format=%B -n 1", { cwd: testGitDir, encoding: "utf-8" })
+			expect(log).toContain("path\\to\\file")
 		})
 	})
 })
