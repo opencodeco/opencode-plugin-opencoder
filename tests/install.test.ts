@@ -776,6 +776,562 @@ Adding more text to ensure minimum length requirement is satisfied here.`
 		})
 	})
 
+	describe("version compatibility validation", () => {
+		// Helper that creates a postinstall script with version compatibility checking
+		function createPostinstallWithVersionCheck(mockOpenCodeVersion: string): string {
+			return `#!/usr/bin/env node
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs"
+import { join } from "node:path"
+
+const AGENTS_SOURCE_DIR = "${agentsSourceDir.replace(/\\/g, "/")}"
+const AGENTS_TARGET_DIR = "${agentsTargetDir.replace(/\\/g, "/")}"
+const OPENCODE_VERSION = "${mockOpenCodeVersion}"
+
+const MIN_CONTENT_LENGTH = 100
+const REQUIRED_KEYWORDS = ["agent", "task"]
+const REQUIRED_FRONTMATTER_FIELDS = ["version", "requires"]
+
+function parseVersion(version) {
+	const match = version.match(/^(\\d+)\\.(\\d+)\\.(\\d+)$/)
+	if (!match) return null
+	return {
+		major: Number.parseInt(match[1], 10),
+		minor: Number.parseInt(match[2], 10),
+		patch: Number.parseInt(match[3], 10),
+	}
+}
+
+function compareVersions(a, b) {
+	if (a.major !== b.major) return a.major < b.major ? -1 : 1
+	if (a.minor !== b.minor) return a.minor < b.minor ? -1 : 1
+	if (a.patch !== b.patch) return a.patch < b.patch ? -1 : 1
+	return 0
+}
+
+function checkVersionCompatibility(required, current) {
+	const currentVersion = parseVersion(current)
+	if (!currentVersion) return false
+
+	// Handle caret range
+	if (required.startsWith("^")) {
+		const rangeVersion = parseVersion(required.slice(1))
+		if (!rangeVersion) return false
+		if (compareVersions(currentVersion, rangeVersion) < 0) return false
+		if (rangeVersion.major === 0) {
+			return currentVersion.major === 0 && currentVersion.minor === rangeVersion.minor
+		}
+		return currentVersion.major === rangeVersion.major
+	}
+
+	// Handle tilde range
+	if (required.startsWith("~")) {
+		const rangeVersion = parseVersion(required.slice(1))
+		if (!rangeVersion) return false
+		if (compareVersions(currentVersion, rangeVersion) < 0) return false
+		return currentVersion.major === rangeVersion.major && currentVersion.minor === rangeVersion.minor
+	}
+
+	// Handle >= operator
+	if (required.startsWith(">=")) {
+		const rangeVersion = parseVersion(required.slice(2))
+		if (!rangeVersion) return false
+		return compareVersions(currentVersion, rangeVersion) >= 0
+	}
+
+	// Handle > operator
+	if (required.startsWith(">")) {
+		const rangeVersion = parseVersion(required.slice(1))
+		if (!rangeVersion) return false
+		return compareVersions(currentVersion, rangeVersion) > 0
+	}
+
+	// Handle <= operator
+	if (required.startsWith("<=")) {
+		const rangeVersion = parseVersion(required.slice(2))
+		if (!rangeVersion) return false
+		return compareVersions(currentVersion, rangeVersion) <= 0
+	}
+
+	// Handle < operator
+	if (required.startsWith("<")) {
+		const rangeVersion = parseVersion(required.slice(1))
+		if (!rangeVersion) return false
+		return compareVersions(currentVersion, rangeVersion) < 0
+	}
+
+	// Handle exact version match
+	const rangeVersion = parseVersion(required)
+	if (!rangeVersion) return false
+	return compareVersions(currentVersion, rangeVersion) === 0
+}
+
+function parseFrontmatter(content) {
+	if (!content.startsWith("---")) {
+		return { found: false, fields: {}, endIndex: 0 }
+	}
+
+	const endMatch = content.indexOf("\\n---", 3)
+	if (endMatch === -1) {
+		return { found: false, fields: {}, endIndex: 0 }
+	}
+
+	const frontmatterContent = content.slice(4, endMatch)
+	const fields = {}
+
+	for (const line of frontmatterContent.split("\\n")) {
+		const trimmed = line.trim()
+		if (!trimmed || trimmed.startsWith("#")) continue
+
+		const colonIndex = trimmed.indexOf(":")
+		if (colonIndex === -1) continue
+
+		const key = trimmed.slice(0, colonIndex).trim()
+		let value = trimmed.slice(colonIndex + 1).trim()
+
+		if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+			value = value.slice(1, -1)
+		}
+
+		fields[key] = value
+	}
+
+	const endIndex = endMatch + 4
+	return { found: true, fields, endIndex }
+}
+
+function validateAgentContent(content) {
+	if (content.length < MIN_CONTENT_LENGTH) {
+		return {
+			valid: false,
+			error: \`File too short: \${content.length} characters (minimum \${MIN_CONTENT_LENGTH})\`,
+		}
+	}
+
+	const frontmatter = parseFrontmatter(content)
+	if (!frontmatter.found) {
+		return {
+			valid: false,
+			error: "File missing YAML frontmatter (must start with ---)",
+		}
+	}
+
+	const missingFields = REQUIRED_FRONTMATTER_FIELDS.filter((field) => !frontmatter.fields[field])
+	if (missingFields.length > 0) {
+		return {
+			valid: false,
+			error: \`Frontmatter missing required fields: \${missingFields.join(", ")}\`,
+		}
+	}
+
+	const contentAfterFrontmatter = content.slice(frontmatter.endIndex).trimStart()
+
+	if (!contentAfterFrontmatter.startsWith("# ")) {
+		return {
+			valid: false,
+			error: "File does not have a markdown header (# ) after frontmatter",
+		}
+	}
+
+	const lowerContent = content.toLowerCase()
+	const hasKeyword = REQUIRED_KEYWORDS.some((keyword) => lowerContent.includes(keyword))
+	if (!hasKeyword) {
+		return {
+			valid: false,
+			error: \`File missing required keywords: \${REQUIRED_KEYWORDS.join(", ")}\`,
+		}
+	}
+
+	return { valid: true }
+}
+
+function validateAgentFile(filePath) {
+	const content = readFileSync(filePath, "utf-8")
+	const contentValidation = validateAgentContent(content)
+	if (!contentValidation.valid) {
+		return contentValidation
+	}
+
+	// Check version compatibility from frontmatter
+	const frontmatter = parseFrontmatter(content)
+	if (frontmatter.found && frontmatter.fields.requires) {
+		const requiresVersion = frontmatter.fields.requires
+		const isCompatible = checkVersionCompatibility(requiresVersion, OPENCODE_VERSION)
+		if (!isCompatible) {
+			return {
+				valid: false,
+				error: \`Incompatible OpenCode version: requires \${requiresVersion}, but current version is \${OPENCODE_VERSION}\`,
+			}
+		}
+	}
+
+	return { valid: true }
+}
+
+function main() {
+	console.log("opencode-plugin-opencoder: Installing agents...")
+
+	if (!existsSync(AGENTS_TARGET_DIR)) {
+		mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+		console.log(\`  Created \${AGENTS_TARGET_DIR}\`)
+	}
+
+	if (!existsSync(AGENTS_SOURCE_DIR)) {
+		console.error(\`  Error: Source agents directory not found at \${AGENTS_SOURCE_DIR}\`)
+		process.exit(1)
+	}
+
+	const files = readdirSync(AGENTS_SOURCE_DIR).filter((f) => f.endsWith(".md"))
+
+	if (files.length === 0) {
+		console.error("  Error: No agent files found in agents/ directory")
+		process.exit(1)
+	}
+
+	const successes = []
+	const failures = []
+
+	for (const file of files) {
+		const sourcePath = join(AGENTS_SOURCE_DIR, file)
+		const targetPath = join(AGENTS_TARGET_DIR, file)
+
+		try {
+			copyFileSync(sourcePath, targetPath)
+
+			const sourceSize = statSync(sourcePath).size
+			const targetSize = statSync(targetPath).size
+
+			if (sourceSize !== targetSize) {
+				throw new Error(
+					\`File size mismatch: source=\${sourceSize} bytes, target=\${targetSize} bytes\`,
+				)
+			}
+
+			const validation = validateAgentFile(targetPath)
+			if (!validation.valid) {
+				throw new Error(\`Invalid agent file: \${validation.error}\`)
+			}
+
+			successes.push(file)
+			console.log(\`  Installed: \${file}\`)
+		} catch (err) {
+			failures.push({ file, message: err.message })
+			console.error(\`  Failed: \${file} - \${err.message}\`)
+		}
+	}
+
+	console.log("")
+	if (successes.length > 0 && failures.length === 0) {
+		console.log(\`opencode-plugin-opencoder: Successfully installed \${successes.length} agent(s)\`)
+	} else if (successes.length > 0 && failures.length > 0) {
+		console.log(\`opencode-plugin-opencoder: Installed \${successes.length} of \${files.length} agent(s)\`)
+		console.error(\`  \${failures.length} file(s) failed to install:\`)
+		for (const { file, message } of failures) {
+			console.error(\`    - \${file}: \${message}\`)
+		}
+	} else {
+		console.error("opencode-plugin-opencoder: Failed to install any agents")
+		for (const { file, message } of failures) {
+			console.error(\`    - \${file}: \${message}\`)
+		}
+		process.exit(1)
+	}
+}
+
+main()
+`
+		}
+
+		// Valid agent content that requires OpenCode >= 0.1.0
+		const validAgentRequiresGte010 = `---
+version: 0.1.0
+requires: ">=0.1.0"
+---
+
+# Test Agent
+
+This is a valid agent file that contains enough content to pass the minimum length requirement.
+
+## Task Execution
+
+The agent handles various tasks and operations in the system.
+`
+
+		// Agent content that requires OpenCode >= 2.0.0 (incompatible with mock 0.1.0)
+		const agentRequiresGte200 = `---
+version: 0.1.0
+requires: ">=2.0.0"
+---
+
+# Test Agent
+
+This is a valid agent file that contains enough content to pass the minimum length requirement.
+
+## Task Execution
+
+The agent handles various tasks and operations in the system.
+`
+
+		// Agent content that requires exactly version 0.1.0
+		const agentRequiresExact010 = `---
+version: 0.1.0
+requires: "0.1.0"
+---
+
+# Test Agent
+
+This is a valid agent file that contains enough content to pass the minimum length requirement.
+
+## Task Execution
+
+The agent handles various tasks and operations in the system.
+`
+
+		// Agent content with caret range ^0.1.0
+		const agentRequiresCaret010 = `---
+version: 0.1.0
+requires: "^0.1.0"
+---
+
+# Test Agent
+
+This is a valid agent file that contains enough content to pass the minimum length requirement.
+
+## Task Execution
+
+The agent handles various tasks and operations in the system.
+`
+
+		// Agent content with caret range ^0.2.0 (incompatible with 0.1.0)
+		const agentRequiresCaret020 = `---
+version: 0.1.0
+requires: "^0.2.0"
+---
+
+# Test Agent
+
+This is a valid agent file that contains enough content to pass the minimum length requirement.
+
+## Task Execution
+
+The agent handles various tasks and operations in the system.
+`
+
+		beforeEach(() => {
+			// Set up valid agent files by default
+			writeFileSync(join(agentsSourceDir, "opencoder.md"), validAgentRequiresGte010)
+			writeFileSync(join(agentsSourceDir, "opencoder-planner.md"), validAgentRequiresGte010)
+			writeFileSync(join(agentsSourceDir, "opencoder-builder.md"), validAgentRequiresGte010)
+		})
+
+		it("should accept agents with compatible >=0.1.0 requirement when OpenCode is 0.1.0", async () => {
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithVersionCheck("0.1.0"))
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			expect(exitCode).toBe(0)
+
+			const stdout = await new Response(proc.stdout).text()
+			expect(stdout).toContain("Successfully installed 3 agent(s)")
+
+			// Verify all files were copied
+			expect(existsSync(join(agentsTargetDir, "opencoder.md"))).toBe(true)
+			expect(existsSync(join(agentsTargetDir, "opencoder-planner.md"))).toBe(true)
+			expect(existsSync(join(agentsTargetDir, "opencoder-builder.md"))).toBe(true)
+		})
+
+		it("should reject agents requiring >=2.0.0 when OpenCode is 0.1.0", async () => {
+			// Create an agent that requires OpenCode >= 2.0.0
+			writeFileSync(join(agentsSourceDir, "future-agent.md"), agentRequiresGte200)
+
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithVersionCheck("0.1.0"))
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			// Should succeed partially (other files are valid)
+			expect(exitCode).toBe(0)
+
+			const stderr = await new Response(proc.stderr).text()
+			expect(stderr).toContain("future-agent.md")
+			expect(stderr).toContain("Incompatible OpenCode version")
+			expect(stderr).toContain("requires >=2.0.0")
+			expect(stderr).toContain("current version is 0.1.0")
+		})
+
+		it("should accept agents with exact version match 0.1.0 when OpenCode is 0.1.0", async () => {
+			writeFileSync(join(agentsSourceDir, "exact-match.md"), agentRequiresExact010)
+
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithVersionCheck("0.1.0"))
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			expect(exitCode).toBe(0)
+
+			// Verify the exact match file was installed
+			expect(existsSync(join(agentsTargetDir, "exact-match.md"))).toBe(true)
+		})
+
+		it("should reject agents with exact version match 0.1.0 when OpenCode is 0.2.0", async () => {
+			writeFileSync(join(agentsSourceDir, "exact-match.md"), agentRequiresExact010)
+
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithVersionCheck("0.2.0"))
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			await proc.exited
+
+			const stderr = await new Response(proc.stderr).text()
+			expect(stderr).toContain("exact-match.md")
+			expect(stderr).toContain("Incompatible OpenCode version")
+			expect(stderr).toContain("requires 0.1.0")
+		})
+
+		it("should accept agents with caret range ^0.1.0 when OpenCode is 0.1.5", async () => {
+			writeFileSync(join(agentsSourceDir, "caret-agent.md"), agentRequiresCaret010)
+
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithVersionCheck("0.1.5"))
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			expect(exitCode).toBe(0)
+
+			// Verify the caret range file was installed
+			expect(existsSync(join(agentsTargetDir, "caret-agent.md"))).toBe(true)
+		})
+
+		it("should reject agents with caret range ^0.1.0 when OpenCode is 0.2.0 (major 0 rule)", async () => {
+			writeFileSync(join(agentsSourceDir, "caret-agent.md"), agentRequiresCaret010)
+
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithVersionCheck("0.2.0"))
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			await proc.exited
+
+			const stderr = await new Response(proc.stderr).text()
+			expect(stderr).toContain("caret-agent.md")
+			expect(stderr).toContain("Incompatible OpenCode version")
+			expect(stderr).toContain("requires ^0.1.0")
+		})
+
+		it("should reject agents with caret range ^0.2.0 when OpenCode is 0.1.0", async () => {
+			writeFileSync(join(agentsSourceDir, "caret-agent.md"), agentRequiresCaret020)
+
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithVersionCheck("0.1.0"))
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			await proc.exited
+
+			const stderr = await new Response(proc.stderr).text()
+			expect(stderr).toContain("caret-agent.md")
+			expect(stderr).toContain("Incompatible OpenCode version")
+			expect(stderr).toContain("requires ^0.2.0")
+		})
+
+		it("should fail completely when all agents have incompatible versions", async () => {
+			// Replace all agent files with incompatible versions
+			writeFileSync(join(agentsSourceDir, "opencoder.md"), agentRequiresGte200)
+			writeFileSync(join(agentsSourceDir, "opencoder-planner.md"), agentRequiresGte200)
+			writeFileSync(join(agentsSourceDir, "opencoder-builder.md"), agentRequiresGte200)
+
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithVersionCheck("0.1.0"))
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			expect(exitCode).toBe(1)
+
+			const stderr = await new Response(proc.stderr).text()
+			expect(stderr).toContain("Failed to install any agents")
+			expect(stderr).toContain("Incompatible OpenCode version")
+		})
+
+		it("should report partial success when some agents have incompatible versions", async () => {
+			// Keep two valid, make one incompatible
+			writeFileSync(join(agentsSourceDir, "opencoder-builder.md"), agentRequiresGte200)
+
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithVersionCheck("0.1.0"))
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			expect(exitCode).toBe(0)
+
+			const stdout = await new Response(proc.stdout).text()
+			expect(stdout).toContain("Installed 2 of 3 agent(s)")
+
+			const stderr = await new Response(proc.stderr).text()
+			expect(stderr).toContain("1 file(s) failed to install")
+			expect(stderr).toContain("opencoder-builder.md")
+		})
+
+		it("should accept agents with >=0.1.0 requirement when OpenCode is 1.0.0", async () => {
+			const scriptPath = join(mockProjectDir, "test-postinstall.mjs")
+			writeFileSync(scriptPath, createPostinstallWithVersionCheck("1.0.0"))
+
+			const proc = Bun.spawn(["node", scriptPath], {
+				cwd: mockProjectDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			expect(exitCode).toBe(0)
+
+			const stdout = await new Response(proc.stdout).text()
+			expect(stdout).toContain("Successfully installed 3 agent(s)")
+		})
+	})
+
 	describe("preuninstall script", () => {
 		it("should remove agent files from target directory", async () => {
 			// First install the agents

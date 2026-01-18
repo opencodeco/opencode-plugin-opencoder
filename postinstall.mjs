@@ -12,14 +12,22 @@ import { join } from "node:path"
 
 import {
 	AGENTS_TARGET_DIR,
+	checkVersionCompatibility,
 	createLogger,
 	getAgentsSourceDir,
 	getErrorMessage,
 	getPackageRoot,
 	parseCliFlags,
+	parseFrontmatter,
 	retryOnTransientError,
 	validateAgentContent,
 } from "./src/paths.mjs"
+
+/**
+ * Mock OpenCode version for compatibility checking.
+ * In production, this would be obtained from the OpenCode CLI or environment.
+ */
+const OPENCODE_VERSION = "0.1.0"
 
 const packageRoot = getPackageRoot(import.meta.url)
 const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
@@ -52,14 +60,33 @@ const logger = createLogger(VERBOSE)
 const verbose = logger.verbose
 
 /**
- * Validates an agent file by reading and validating its content.
+ * Validates an agent file by reading and validating its content,
+ * including version compatibility checking.
  *
  * @param {string} filePath - Path to the agent file to validate
  * @returns {{ valid: boolean, error?: string }} Validation result with optional error message
  */
 function validateAgentFile(filePath) {
 	const content = readFileSync(filePath, "utf-8")
-	return validateAgentContent(content)
+	const contentValidation = validateAgentContent(content)
+	if (!contentValidation.valid) {
+		return contentValidation
+	}
+
+	// Check version compatibility from frontmatter
+	const frontmatter = parseFrontmatter(content)
+	if (frontmatter.found && frontmatter.fields.requires) {
+		const requiresVersion = frontmatter.fields.requires
+		const isCompatible = checkVersionCompatibility(requiresVersion, OPENCODE_VERSION)
+		if (!isCompatible) {
+			return {
+				valid: false,
+				error: `Incompatible OpenCode version: requires ${requiresVersion}, but current version is ${OPENCODE_VERSION}`,
+			}
+		}
+	}
+
+	return { valid: true }
 }
 
 /**
