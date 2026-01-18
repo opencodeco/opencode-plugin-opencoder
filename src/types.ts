@@ -103,6 +103,8 @@ export interface Paths {
 	historyDir: string
 	/** .opencoder/ideas/ */
 	ideasDir: string
+	/** .opencoder/ideas/history/ */
+	ideasHistoryDir: string
 	/** opencoder.json config file */
 	configFile: string
 }

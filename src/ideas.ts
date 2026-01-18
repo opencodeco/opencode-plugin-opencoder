@@ -5,7 +5,7 @@
  * for the autonomous loop to work on.
  */
 
-import { existsSync, readdirSync, unlinkSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
 import type { Idea } from "./types.ts"
 
@@ -114,6 +114,41 @@ export function removeIdea(ideaPath: string): boolean {
 			console.debug(`[ideas] Failed to remove ${ideaPath}: ${err}`)
 		}
 		return false
+	}
+}
+
+/**
+ * Archive an idea file to the history directory before processing.
+ * Creates a timestamped copy for future reference.
+ * @param ideaPath - Path to the idea file to archive
+ * @param historyDir - Directory to store archived ideas
+ * @returns The path to the archived file, or null if archiving failed
+ */
+export function archiveIdea(ideaPath: string, historyDir: string): string | null {
+	try {
+		if (!existsSync(ideaPath)) {
+			return null
+		}
+
+		// Ensure history directory exists
+		if (!existsSync(historyDir)) {
+			mkdirSync(historyDir, { recursive: true })
+		}
+
+		// Generate timestamped filename: YYYYMMDD_HHMMSS_originalname.md
+		const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "_").slice(0, 15)
+		const originalFilename = ideaPath.split("/").pop() || "idea.md"
+		const archiveFilename = `${timestamp}_${originalFilename}`
+		const archivePath = join(historyDir, archiveFilename)
+
+		copyFileSync(ideaPath, archivePath)
+		return archivePath
+	} catch (err) {
+		// Failed to archive idea file
+		if (process.env.DEBUG) {
+			console.debug(`[ideas] Failed to archive ${ideaPath}: ${err}`)
+		}
+		return null
 	}
 }
 

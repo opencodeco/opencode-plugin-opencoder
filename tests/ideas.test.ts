@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import {
+	archiveIdea,
 	countIdeas,
 	formatIdeasForSelection,
 	getIdeaSummary,
@@ -161,6 +162,61 @@ describe("ideas", () => {
 		test("returns false for non-existent file", () => {
 			const result = removeIdea("/nonexistent/file.md")
 			expect(result).toBe(false)
+		})
+	})
+
+	describe("archiveIdea", () => {
+		test("archives idea to history directory", async () => {
+			const ideaPath = join(TEST_DIR, "my-idea.md")
+			const historyDir = join(TEST_DIR, "history")
+			await Bun.write(ideaPath, "# Test Idea\nContent here")
+
+			const archivePath = archiveIdea(ideaPath, historyDir)
+
+			expect(archivePath).not.toBeNull()
+			if (!archivePath) return // Type guard
+			expect(existsSync(archivePath)).toBe(true)
+			expect(archivePath).toContain("_my-idea.md")
+			// Original file should still exist
+			expect(existsSync(ideaPath)).toBe(true)
+
+			// Verify content was copied
+			const archivedContent = await Bun.file(archivePath).text()
+			expect(archivedContent).toBe("# Test Idea\nContent here")
+		})
+
+		test("creates history directory if it doesn't exist", async () => {
+			const ideaPath = join(TEST_DIR, "idea.md")
+			const historyDir = join(TEST_DIR, "new-history-dir")
+			await Bun.write(ideaPath, "content")
+
+			expect(existsSync(historyDir)).toBe(false)
+
+			const archivePath = archiveIdea(ideaPath, historyDir)
+
+			expect(archivePath).not.toBeNull()
+			expect(existsSync(historyDir)).toBe(true)
+		})
+
+		test("returns null for non-existent idea", () => {
+			const historyDir = join(TEST_DIR, "history")
+			const archivePath = archiveIdea("/nonexistent/idea.md", historyDir)
+
+			expect(archivePath).toBeNull()
+		})
+
+		test("generates timestamped filename", async () => {
+			const ideaPath = join(TEST_DIR, "feature.md")
+			const historyDir = join(TEST_DIR, "history")
+			await Bun.write(ideaPath, "content")
+
+			const archivePath = archiveIdea(ideaPath, historyDir)
+
+			expect(archivePath).not.toBeNull()
+			if (!archivePath) return // Type guard
+			// Should match pattern: YYYYMMDD_HHMMSS_filename.md
+			const filename = archivePath.split("/").pop()
+			expect(filename).toMatch(/^\d{8}_\d{6}_feature\.md$/)
 		})
 	})
 })

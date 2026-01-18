@@ -49,6 +49,7 @@ describe("fs", () => {
 			expect(paths.alertsFile).toBe("/project/.opencode/opencoder/alerts.log")
 			expect(paths.historyDir).toBe("/project/.opencode/opencoder/history")
 			expect(paths.ideasDir).toBe("/project/.opencode/opencoder/ideas")
+			expect(paths.ideasHistoryDir).toBe("/project/.opencode/opencoder/ideas/history")
 			expect(paths.configFile).toBe("/project/.opencode/opencoder/config.json")
 		})
 
@@ -70,6 +71,7 @@ describe("fs", () => {
 			expect(existsSync(paths.cycleLogDir)).toBe(true)
 			expect(existsSync(paths.historyDir)).toBe(true)
 			expect(existsSync(paths.ideasDir)).toBe(true)
+			expect(existsSync(paths.ideasHistoryDir)).toBe(true)
 		})
 
 		test("handles existing directories", () => {

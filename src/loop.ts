@@ -19,7 +19,13 @@ import {
 	writeFile,
 } from "./fs.ts"
 import { commitChanges, generateCommitMessage, hasChanges, pushChanges } from "./git.ts"
-import { formatIdeasForSelection, loadAllIdeas, parseIdeaSelection, removeIdea } from "./ideas.ts"
+import {
+	archiveIdea,
+	formatIdeasForSelection,
+	loadAllIdeas,
+	parseIdeaSelection,
+	removeIdea,
+} from "./ideas.ts"
 import { Logger } from "./logger.ts"
 import { getTasks, getUncompletedTasks, markTaskComplete, validatePlan } from "./plan.ts"
 import { loadState, saveState } from "./state.ts"
@@ -310,8 +316,14 @@ async function runPlanPhase(
 	const tasks = getTasks(planContent)
 	logger.success(`Plan created with ${tasks.length} tasks`)
 
-	// Only NOW remove the idea file, after plan is safely saved
+	// Archive and remove the idea file, after plan is safely saved
 	if (ideaToRemove) {
+		// Archive to history before removing
+		const archivePath = archiveIdea(ideaToRemove.path, paths.ideasHistoryDir)
+		if (archivePath) {
+			logger.logVerbose(`Archived idea to: ${archivePath}`)
+		}
+
 		const removed = removeIdea(ideaToRemove.path)
 		if (removed) {
 			logger.logVerbose(`Removed processed idea: ${ideaToRemove.filename}`)

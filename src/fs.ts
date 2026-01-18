@@ -17,6 +17,7 @@ const OPENCODER_SUBDIR = "opencoder"
  */
 export function initializePaths(projectDir: string): Paths {
 	const opencoderDir = join(resolve(projectDir), OPENCODE_DIR, OPENCODER_SUBDIR)
+	const ideasDir = join(opencoderDir, "ideas")
 
 	return {
 		opencoderDir,
@@ -26,7 +27,8 @@ export function initializePaths(projectDir: string): Paths {
 		cycleLogDir: join(opencoderDir, "logs", "cycles"),
 		alertsFile: join(opencoderDir, "alerts.log"),
 		historyDir: join(opencoderDir, "history"),
-		ideasDir: join(opencoderDir, "ideas"),
+		ideasDir,
+		ideasHistoryDir: join(ideasDir, "history"),
 		configFile: join(opencoderDir, "config.json"),
 	}
 }
@@ -43,6 +45,7 @@ export function ensureDirectories(paths: Paths): void {
 		paths.cycleLogDir,
 		paths.historyDir,
 		paths.ideasDir,
+		paths.ideasHistoryDir,
 	]
 
 	for (const dir of directories) {
