@@ -23,6 +23,19 @@ const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
 /** Check for --dry-run flag in command line arguments */
 const DRY_RUN = process.argv.includes("--dry-run")
 
+/** Check for --verbose flag in command line arguments */
+const VERBOSE = process.argv.includes("--verbose")
+
+/**
+ * Logs verbose output if --verbose flag is set.
+ * @param {string} message - The message to log
+ */
+function verbose(message) {
+	if (VERBOSE) {
+		console.log(`[VERBOSE] ${message}`)
+	}
+}
+
 /**
  * Main entry point for the preuninstall script.
  *
@@ -45,19 +58,33 @@ function main() {
 	const prefix = DRY_RUN ? "[DRY-RUN] " : ""
 	console.log(`${prefix}opencode-plugin-opencoder: Removing agents...`)
 
+	verbose(`Package root: ${packageRoot}`)
+	verbose(`Source directory: ${AGENTS_SOURCE_DIR}`)
+	verbose(`Target directory: ${AGENTS_TARGET_DIR}`)
+	verbose(`Dry run: ${DRY_RUN}`)
+
 	// Check if target directory exists
+	verbose(`Checking if target directory exists...`)
 	if (!existsSync(AGENTS_TARGET_DIR)) {
+		verbose(`Target directory does not exist`)
 		console.log(`${prefix}  No agents directory found, nothing to remove`)
 		return
 	}
+	verbose(`Target directory exists`)
 
 	// Get list of agents we installed (from source directory)
+	verbose(`Checking if source directory exists...`)
 	if (!existsSync(AGENTS_SOURCE_DIR)) {
+		verbose(`Source directory does not exist`)
 		console.log(`${prefix}  Source agents directory not found, skipping cleanup`)
 		return
 	}
+	verbose(`Source directory exists`)
 
-	const agentFiles = readdirSync(AGENTS_SOURCE_DIR).filter((f) => f.endsWith(".md"))
+	const allFiles = readdirSync(AGENTS_SOURCE_DIR)
+	verbose(`Files in source directory: ${allFiles.join(", ") || "(none)"}`)
+	const agentFiles = allFiles.filter((f) => f.endsWith(".md"))
+	verbose(`Markdown files to remove: ${agentFiles.length}`)
 
 	if (agentFiles.length === 0) {
 		console.log(`${prefix}  No agent files to remove`)
@@ -68,8 +95,11 @@ function main() {
 
 	for (const file of agentFiles) {
 		const targetPath = join(AGENTS_TARGET_DIR, file)
+		verbose(`Processing: ${file}`)
+		verbose(`  Target path: ${targetPath}`)
 
 		if (existsSync(targetPath)) {
+			verbose(`  File exists, removing...`)
 			try {
 				if (DRY_RUN) {
 					console.log(`${prefix}Would remove: ${targetPath}`)
@@ -79,14 +109,19 @@ function main() {
 					console.log(`  Removed: ${file}`)
 					removedCount++
 				}
+				verbose(`  Successfully removed`)
 			} catch (err) {
 				const error = err instanceof Error ? err : new Error(String(err))
 				const message = getErrorMessage(error, file, targetPath)
 				console.error(`${prefix}  Warning: Could not remove ${file}: ${message}`)
+				verbose(`  Error details: ${error.message}`)
 			}
+		} else {
+			verbose(`  File does not exist, skipping`)
 		}
 	}
 
+	verbose(`Removal summary: ${removedCount} files removed`)
 	if (removedCount > 0) {
 		console.log(`\n${prefix}opencode-plugin-opencoder: Removed ${removedCount} agent(s)`)
 	} else {

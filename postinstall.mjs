@@ -23,6 +23,19 @@ const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
 /** Check for --dry-run flag in command line arguments */
 const DRY_RUN = process.argv.includes("--dry-run")
 
+/** Check for --verbose flag in command line arguments */
+const VERBOSE = process.argv.includes("--verbose")
+
+/**
+ * Logs verbose output if --verbose flag is set.
+ * @param {string} message - The message to log
+ */
+function verbose(message) {
+	if (VERBOSE) {
+		console.log(`[VERBOSE] ${message}`)
+	}
+}
+
 /** Minimum character count for valid agent files */
 const MIN_CONTENT_LENGTH = 100
 
@@ -172,24 +185,37 @@ function main() {
 	const prefix = DRY_RUN ? "[DRY-RUN] " : ""
 	console.log(`${prefix}opencode-plugin-opencoder: Installing agents...`)
 
+	verbose(`Package root: ${packageRoot}`)
+	verbose(`Source directory: ${AGENTS_SOURCE_DIR}`)
+	verbose(`Target directory: ${AGENTS_TARGET_DIR}`)
+	verbose(`Dry run: ${DRY_RUN}`)
+
 	// Create target directory if it doesn't exist
 	if (!existsSync(AGENTS_TARGET_DIR)) {
+		verbose(`Target directory does not exist, creating...`)
 		if (DRY_RUN) {
 			console.log(`${prefix}Would create ${AGENTS_TARGET_DIR}`)
 		} else {
 			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
 			console.log(`  Created ${AGENTS_TARGET_DIR}`)
 		}
+	} else {
+		verbose(`Target directory already exists`)
 	}
 
 	// Check if source directory exists
+	verbose(`Checking source directory exists...`)
 	if (!existsSync(AGENTS_SOURCE_DIR)) {
 		console.error(`${prefix}  Error: Source agents directory not found at ${AGENTS_SOURCE_DIR}`)
 		process.exit(1)
 	}
+	verbose(`Source directory found`)
 
 	// Copy all .md files from agents/ to target
-	const files = readdirSync(AGENTS_SOURCE_DIR).filter((f) => f.endsWith(".md"))
+	const allFiles = readdirSync(AGENTS_SOURCE_DIR)
+	verbose(`Files in source directory: ${allFiles.join(", ") || "(none)"}`)
+	const files = allFiles.filter((f) => f.endsWith(".md"))
+	verbose(`Markdown files found: ${files.length}`)
 
 	if (files.length === 0) {
 		console.error(`${prefix}  Error: No agent files found in agents/ directory`)
@@ -202,34 +228,45 @@ function main() {
 	for (const file of files) {
 		const sourcePath = join(AGENTS_SOURCE_DIR, file)
 		const targetPath = join(AGENTS_TARGET_DIR, file)
+		verbose(`Processing: ${file}`)
+		verbose(`  Source path: ${sourcePath}`)
+		verbose(`  Target path: ${targetPath}`)
 
 		try {
 			if (DRY_RUN) {
 				// In dry-run mode, validate source file but don't copy
+				verbose(`  Validating source file (dry-run mode)...`)
 				const validation = validateAgentContent(sourcePath)
 				if (!validation.valid) {
 					throw new Error(`Invalid agent file content: ${validation.error}`)
 				}
+				verbose(`  Validation passed`)
 				successes.push(file)
 				console.log(`${prefix}Would install: ${file} -> ${targetPath}`)
 			} else {
+				verbose(`  Copying file...`)
 				copyFileSync(sourcePath, targetPath)
 
 				// Verify the copy succeeded by comparing file sizes
 				const sourceSize = statSync(sourcePath).size
 				const targetSize = statSync(targetPath).size
+				verbose(`  Source size: ${sourceSize} bytes`)
+				verbose(`  Target size: ${targetSize} bytes`)
 
 				if (sourceSize !== targetSize) {
 					throw new Error(
 						`File size mismatch: source=${sourceSize} bytes, target=${targetSize} bytes`,
 					)
 				}
+				verbose(`  Size verification passed`)
 
 				// Validate content structure
+				verbose(`  Validating content structure...`)
 				const validation = validateAgentContent(targetPath)
 				if (!validation.valid) {
 					throw new Error(`Invalid agent file content: ${validation.error}`)
 				}
+				verbose(`  Validation passed`)
 
 				successes.push(file)
 				console.log(`  Installed: ${file}`)
@@ -243,6 +280,7 @@ function main() {
 	}
 
 	// Print summary
+	verbose(`Installation summary: ${successes.length} succeeded, ${failures.length} failed`)
 	console.log("")
 	if (successes.length > 0 && failures.length === 0) {
 		console.log(
