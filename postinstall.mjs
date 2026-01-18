@@ -8,15 +8,12 @@
  */
 
 import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs"
-import { homedir } from "node:os"
 import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+import { AGENTS_TARGET_DIR, getAgentsSourceDir, getPackageRoot } from "./src/paths.mjs"
 
-const AGENTS_SOURCE_DIR = join(__dirname, "agents")
-const AGENTS_TARGET_DIR = join(homedir(), ".config", "opencode", "agents")
+const packageRoot = getPackageRoot(import.meta.url)
+const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
 
 /**
  * Returns a user-friendly error message based on the error code
