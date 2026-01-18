@@ -3,6 +3,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import {
 	AGENTS_TARGET_DIR,
+	checkVersionCompatibility,
 	getAgentsSourceDir,
 	getErrorMessage,
 	getPackageRoot,
@@ -433,6 +434,147 @@ This is a test agent that handles various tasks.
 `.padEnd(MIN_CONTENT_LENGTH + 50, " ")
 			const result = validateAgentContent(content)
 			expect(result.valid).toBe(true)
+		})
+	})
+
+	describe("checkVersionCompatibility", () => {
+		describe("exact version matching", () => {
+			it("should return true for exact match", () => {
+				expect(checkVersionCompatibility("1.0.0", "1.0.0")).toBe(true)
+			})
+
+			it("should return false for different versions", () => {
+				expect(checkVersionCompatibility("1.0.0", "1.0.1")).toBe(false)
+				expect(checkVersionCompatibility("1.0.0", "1.1.0")).toBe(false)
+				expect(checkVersionCompatibility("1.0.0", "2.0.0")).toBe(false)
+			})
+		})
+
+		describe(">= operator", () => {
+			it("should return true when current equals required", () => {
+				expect(checkVersionCompatibility(">=1.0.0", "1.0.0")).toBe(true)
+			})
+
+			it("should return true when current is greater", () => {
+				expect(checkVersionCompatibility(">=1.0.0", "1.0.1")).toBe(true)
+				expect(checkVersionCompatibility(">=1.0.0", "1.1.0")).toBe(true)
+				expect(checkVersionCompatibility(">=1.0.0", "2.0.0")).toBe(true)
+				expect(checkVersionCompatibility(">=0.1.0", "0.2.0")).toBe(true)
+			})
+
+			it("should return false when current is less", () => {
+				expect(checkVersionCompatibility(">=1.0.0", "0.9.9")).toBe(false)
+				expect(checkVersionCompatibility(">=1.0.0", "0.1.0")).toBe(false)
+			})
+		})
+
+		describe("> operator", () => {
+			it("should return false when current equals required", () => {
+				expect(checkVersionCompatibility(">1.0.0", "1.0.0")).toBe(false)
+			})
+
+			it("should return true when current is greater", () => {
+				expect(checkVersionCompatibility(">1.0.0", "1.0.1")).toBe(true)
+				expect(checkVersionCompatibility(">1.0.0", "2.0.0")).toBe(true)
+			})
+
+			it("should return false when current is less", () => {
+				expect(checkVersionCompatibility(">1.0.0", "0.9.9")).toBe(false)
+			})
+		})
+
+		describe("<= operator", () => {
+			it("should return true when current equals required", () => {
+				expect(checkVersionCompatibility("<=1.0.0", "1.0.0")).toBe(true)
+			})
+
+			it("should return true when current is less", () => {
+				expect(checkVersionCompatibility("<=1.0.0", "0.9.9")).toBe(true)
+				expect(checkVersionCompatibility("<=1.0.0", "0.1.0")).toBe(true)
+			})
+
+			it("should return false when current is greater", () => {
+				expect(checkVersionCompatibility("<=1.0.0", "1.0.1")).toBe(false)
+				expect(checkVersionCompatibility("<=1.0.0", "2.0.0")).toBe(false)
+			})
+		})
+
+		describe("< operator", () => {
+			it("should return false when current equals required", () => {
+				expect(checkVersionCompatibility("<1.0.0", "1.0.0")).toBe(false)
+			})
+
+			it("should return true when current is less", () => {
+				expect(checkVersionCompatibility("<1.0.0", "0.9.9")).toBe(true)
+				expect(checkVersionCompatibility("<1.0.0", "0.1.0")).toBe(true)
+			})
+
+			it("should return false when current is greater", () => {
+				expect(checkVersionCompatibility("<1.0.0", "1.0.1")).toBe(false)
+			})
+		})
+
+		describe("^ caret operator", () => {
+			it("should return true for compatible versions with major >= 1", () => {
+				expect(checkVersionCompatibility("^1.0.0", "1.0.0")).toBe(true)
+				expect(checkVersionCompatibility("^1.0.0", "1.5.0")).toBe(true)
+				expect(checkVersionCompatibility("^1.0.0", "1.9.9")).toBe(true)
+				expect(checkVersionCompatibility("^1.2.3", "1.5.0")).toBe(true)
+			})
+
+			it("should return false for incompatible major versions", () => {
+				expect(checkVersionCompatibility("^1.0.0", "2.0.0")).toBe(false)
+				expect(checkVersionCompatibility("^1.0.0", "0.9.9")).toBe(false)
+			})
+
+			it("should return false when current is below required", () => {
+				expect(checkVersionCompatibility("^1.2.0", "1.1.0")).toBe(false)
+			})
+
+			it("should handle 0.x versions (minor must match)", () => {
+				expect(checkVersionCompatibility("^0.1.0", "0.1.0")).toBe(true)
+				expect(checkVersionCompatibility("^0.1.0", "0.1.5")).toBe(true)
+				expect(checkVersionCompatibility("^0.1.0", "0.2.0")).toBe(false)
+				expect(checkVersionCompatibility("^0.1.0", "1.0.0")).toBe(false)
+			})
+		})
+
+		describe("~ tilde operator", () => {
+			it("should return true for compatible patch versions", () => {
+				expect(checkVersionCompatibility("~1.2.0", "1.2.0")).toBe(true)
+				expect(checkVersionCompatibility("~1.2.0", "1.2.5")).toBe(true)
+				expect(checkVersionCompatibility("~1.2.0", "1.2.99")).toBe(true)
+			})
+
+			it("should return false when minor version differs", () => {
+				expect(checkVersionCompatibility("~1.2.0", "1.3.0")).toBe(false)
+				expect(checkVersionCompatibility("~1.2.0", "1.1.0")).toBe(false)
+			})
+
+			it("should return false when major version differs", () => {
+				expect(checkVersionCompatibility("~1.2.0", "2.2.0")).toBe(false)
+				expect(checkVersionCompatibility("~1.2.0", "0.2.0")).toBe(false)
+			})
+
+			it("should return false when current is below required patch", () => {
+				expect(checkVersionCompatibility("~1.2.5", "1.2.4")).toBe(false)
+			})
+		})
+
+		describe("invalid inputs", () => {
+			it("should return false for invalid current version", () => {
+				expect(checkVersionCompatibility(">=1.0.0", "invalid")).toBe(false)
+				expect(checkVersionCompatibility(">=1.0.0", "1.0")).toBe(false)
+				expect(checkVersionCompatibility(">=1.0.0", "1")).toBe(false)
+				expect(checkVersionCompatibility(">=1.0.0", "")).toBe(false)
+			})
+
+			it("should return false for invalid required version", () => {
+				expect(checkVersionCompatibility("invalid", "1.0.0")).toBe(false)
+				expect(checkVersionCompatibility(">=invalid", "1.0.0")).toBe(false)
+				expect(checkVersionCompatibility("^", "1.0.0")).toBe(false)
+				expect(checkVersionCompatibility("", "1.0.0")).toBe(false)
+			})
 		})
 	})
 })
