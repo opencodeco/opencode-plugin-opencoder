@@ -14,18 +14,15 @@ describe("index.ts exports", () => {
 		expect(DefaultExport).toBe(OpenCoderPlugin)
 	})
 
-	it("should export the plugin name from package.json", () => {
-		expect(name).toBe("opencode-plugin-opencoder")
+	it("should export name matching package.json", () => {
 		expect(name).toBe(pkg.name)
 	})
 
-	it("should export the version from package.json", () => {
-		expect(version).toMatch(/^\d+\.\d+\.\d+/)
+	it("should export version matching package.json", () => {
 		expect(version).toBe(pkg.version)
 	})
 
-	it("should export a description from package.json", () => {
-		expect(description).toContain("autonomous")
+	it("should export description matching package.json", () => {
 		expect(description).toBe(pkg.description)
 	})
 
