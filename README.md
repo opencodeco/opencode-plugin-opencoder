@@ -1,6 +1,7 @@
 # opencoder
 
 [![CI](https://github.com/opencodeco/opencoder/actions/workflows/ci.yml/badge.svg)](https://github.com/opencodeco/opencoder/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/opencodeco/opencoder/branch/main/graph/badge.svg)](https://codecov.io/gh/opencodeco/opencoder)
 
 **Autonomous OpenCode Runner** - A TypeScript-powered CLI that uses the [OpenCode SDK](https://opencode.ai) to run fully autonomous development loops, creating plans and building them continuously without manual intervention.
 
@@ -434,6 +435,8 @@ Using Make (recommended):
 ```bash
 make          # Build release version
 make test     # Run tests
+make test-coverage           # Run tests with coverage report
+make test-coverage-report    # Generate LCOV coverage report for CI
 make lint     # Format and check code with Biome
 make clean    # Remove build artifacts
 make install  # Install to /usr/local/bin
@@ -447,8 +450,14 @@ bun install                  # Install dependencies
 bun run build                # Build release executable
 bun run dev                  # Run in development
 bun test                     # Run tests
+bun test --coverage          # Run tests with coverage report
+bun test --coverage --coverage-reporter=lcov  # Generate LCOV coverage
 bunx biome check src/        # Check formatting/linting
 ```
+
+### Test Coverage
+
+OpenCoder maintains high test coverage with 443+ unit tests across all modules. Coverage reports are generated automatically in CI and uploaded to [Codecov](https://codecov.io/gh/opencodeco/opencoder) for tracking.
 
 ## License
 
