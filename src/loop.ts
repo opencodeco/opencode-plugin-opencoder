@@ -4,12 +4,12 @@
  * Three-phase cycle:
  * 1. Plan - Generate a development plan
  * 2. Build - Build tasks from the plan
- * 3. Evaluation - Evaluate if the cycle is complete
+ * 3. Eval - Evaluate if the cycle is complete
  */
 
 import { join } from "node:path"
 import { Builder } from "./builder.ts"
-import { extractEvaluationReason, isComplete, parseEvaluation } from "./evaluator.ts"
+import { extractEvalReason, isComplete, parseEval } from "./eval.ts"
 import {
 	ensureDirectories,
 	getISOTimestamp,
@@ -110,7 +110,7 @@ export async function runLoop(config: Config): Promise<void> {
 				metrics = recordCycleTimeout(metrics)
 				await saveMetrics(paths.metricsFile, metrics)
 
-				// Force transition to evaluation to complete the cycle
+				// Force transition to eval to complete the cycle
 				if (state.phase === "plan") {
 					// Can't complete without a plan, start new cycle
 					logger.warn("Timeout during planning, starting new cycle...")
@@ -121,11 +121,11 @@ export async function runLoop(config: Config): Promise<void> {
 					state.currentIdeaFilename = undefined
 					builder.clearSession()
 				} else if (state.phase === "build") {
-					// Skip remaining tasks and move to evaluation
-					logger.warn("Timeout during build, skipping to evaluation...")
-					state.phase = "evaluation"
+					// Skip remaining tasks and move to eval
+					logger.warn("Timeout during build, skipping to eval...")
+					state.phase = "eval"
 				}
-				// If already in evaluation, it will complete normally
+				// If already in eval, it will complete normally
 			}
 
 			try {
@@ -139,8 +139,8 @@ export async function runLoop(config: Config): Promise<void> {
 						metrics = await runBuildPhase(state, builder, paths, logger, config, metrics)
 						break
 
-					case "evaluation":
-						metrics = await runEvaluationPhase(state, builder, paths, logger, config, metrics)
+					case "eval":
+						metrics = await runEvalPhase(state, builder, paths, logger, config, metrics)
 						break
 				}
 
@@ -177,7 +177,7 @@ export async function runLoop(config: Config): Promise<void> {
 						state.currentIdeaFilename = undefined
 						logger.warn("Clearing idea state and retrying plan phase...")
 					}
-					// For evaluation, just retry - it will eventually succeed or the user will intervene
+					// For eval, just retry - it will eventually succeed or the user will intervene
 				} else {
 					// Retry with exponential backoff
 					const backoffMs = calculateBackoff(state.retryCount, config.backoffBase)
@@ -426,7 +426,7 @@ async function runBuildPhase(
 	// Check if all tasks are done
 	if (uncompletedTasks.length === 0) {
 		logger.success("All tasks completed!")
-		state.phase = "evaluation"
+		state.phase = "eval"
 		return metrics
 	}
 
@@ -434,7 +434,7 @@ async function runBuildPhase(
 	const nextTask = uncompletedTasks[0]
 	if (!nextTask) {
 		logger.success("All tasks completed!")
-		state.phase = "evaluation"
+		state.phase = "eval"
 		return metrics
 	}
 	const taskIndex = tasks.findIndex(
@@ -487,9 +487,9 @@ async function runBuildPhase(
 }
 
 /**
- * Run the evaluation phase
+ * Run the eval phase
  */
-async function runEvaluationPhase(
+async function runEvalPhase(
 	state: RuntimeState,
 	builder: Builder,
 	paths: Paths,
@@ -497,18 +497,18 @@ async function runEvaluationPhase(
 	config: Config,
 	metrics: Metrics,
 ): Promise<Metrics> {
-	// Read current plan for evaluation
+	// Read current plan for eval
 	const planContent = await readFileOrNull(paths.currentPlan)
 	if (!planContent) {
-		logger.logError("No plan file found for evaluation")
+		logger.logError("No plan file found for eval")
 		state.phase = "plan"
 		return metrics
 	}
 
-	// Run evaluation
-	const response = await builder.runEvaluation(state.cycle, planContent)
-	const result = parseEvaluation(response)
-	const reason = extractEvaluationReason(response)
+	// Run eval
+	const response = await builder.runEval(state.cycle, planContent)
+	const result = parseEval(response)
+	const reason = extractEvalReason(response)
 
 	if (isComplete(result)) {
 		logger.success(`Cycle ${state.cycle} complete!`)
@@ -615,13 +615,13 @@ async function skipCurrentTask(state: RuntimeState, paths: Paths, logger: Logger
 	const uncompletedTasks = getUncompletedTasks(planContent)
 
 	if (uncompletedTasks.length === 0) {
-		state.phase = "evaluation"
+		state.phase = "eval"
 		return
 	}
 
 	const currentTask = uncompletedTasks[0]
 	if (!currentTask) {
-		state.phase = "evaluation"
+		state.phase = "eval"
 		return
 	}
 
@@ -641,7 +641,7 @@ async function skipCurrentTask(state: RuntimeState, paths: Paths, logger: Logger
 	// Check if this was the last task
 	const remainingTasks = getUncompletedTasks(planWithNote)
 	if (remainingTasks.length === 0) {
-		state.phase = "evaluation"
+		state.phase = "eval"
 	}
 }
 
