@@ -26,10 +26,13 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --ignore-scripts
 
       - name: Run linter
-        run: bunx biome check src/
+        run: bun run lint
+
+      - name: Run tests
+        run: bun test
 
       - name: Test postinstall script
         run: node postinstall.mjs
