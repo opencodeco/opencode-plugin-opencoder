@@ -24,6 +24,31 @@ describe("semver.mjs exports", () => {
 			expect(parseVersion("0.0.1")).toEqual({ major: 0, minor: 0, patch: 1 })
 			expect(parseVersion("999.999.999")).toEqual({ major: 999, minor: 999, patch: 999 })
 		})
+
+		it("should throw TypeError for null", () => {
+			expect(() => parseVersion(null as unknown as string)).toThrow(TypeError)
+			expect(() => parseVersion(null as unknown as string)).toThrow(
+				"parseVersion: version must be a string, got null",
+			)
+		})
+
+		it("should throw TypeError for undefined", () => {
+			expect(() => parseVersion(undefined as unknown as string)).toThrow(TypeError)
+			expect(() => parseVersion(undefined as unknown as string)).toThrow(
+				"parseVersion: version must be a string, got undefined",
+			)
+		})
+
+		it("should throw TypeError for non-string inputs", () => {
+			expect(() => parseVersion(123 as unknown as string)).toThrow(TypeError)
+			expect(() => parseVersion(123 as unknown as string)).toThrow(
+				"parseVersion: version must be a string, got number",
+			)
+			expect(() => parseVersion({} as unknown as string)).toThrow(TypeError)
+			expect(() => parseVersion({} as unknown as string)).toThrow(
+				"parseVersion: version must be a string, got object",
+			)
+		})
 	})
 
 	describe("compareVersions", () => {
@@ -75,6 +100,95 @@ describe("semver.mjs exports", () => {
 			expect(
 				compareVersions({ major: 1, minor: 2, patch: 0 }, { major: 1, minor: 1, patch: 9 }),
 			).toBe(1)
+		})
+
+		it("should throw TypeError for null parameter a", () => {
+			expect(() =>
+				compareVersions(null as unknown as { major: number; minor: number; patch: number }, {
+					major: 1,
+					minor: 0,
+					patch: 0,
+				}),
+			).toThrow(TypeError)
+			expect(() =>
+				compareVersions(null as unknown as { major: number; minor: number; patch: number }, {
+					major: 1,
+					minor: 0,
+					patch: 0,
+				}),
+			).toThrow("compareVersions: a must be a ParsedVersion object, got null")
+		})
+
+		it("should throw TypeError for undefined parameter b", () => {
+			expect(() =>
+				compareVersions(
+					{ major: 1, minor: 0, patch: 0 },
+					undefined as unknown as { major: number; minor: number; patch: number },
+				),
+			).toThrow(TypeError)
+			expect(() =>
+				compareVersions(
+					{ major: 1, minor: 0, patch: 0 },
+					undefined as unknown as { major: number; minor: number; patch: number },
+				),
+			).toThrow("compareVersions: b must be a ParsedVersion object, got undefined")
+		})
+
+		it("should throw TypeError for non-object parameters", () => {
+			expect(() =>
+				compareVersions("1.0.0" as unknown as { major: number; minor: number; patch: number }, {
+					major: 1,
+					minor: 0,
+					patch: 0,
+				}),
+			).toThrow(TypeError)
+			expect(() =>
+				compareVersions("1.0.0" as unknown as { major: number; minor: number; patch: number }, {
+					major: 1,
+					minor: 0,
+					patch: 0,
+				}),
+			).toThrow("compareVersions: a must be a ParsedVersion object, got string")
+		})
+
+		it("should throw TypeError for empty objects", () => {
+			expect(() =>
+				compareVersions({} as unknown as { major: number; minor: number; patch: number }, {
+					major: 1,
+					minor: 0,
+					patch: 0,
+				}),
+			).toThrow(TypeError)
+			expect(() =>
+				compareVersions({} as unknown as { major: number; minor: number; patch: number }, {
+					major: 1,
+					minor: 0,
+					patch: 0,
+				}),
+			).toThrow("compareVersions: a must have numeric major, minor, and patch properties")
+		})
+
+		it("should throw TypeError for objects with non-numeric properties", () => {
+			expect(() =>
+				compareVersions(
+					{ major: "1", minor: 0, patch: 0 } as unknown as {
+						major: number
+						minor: number
+						patch: number
+					},
+					{ major: 1, minor: 0, patch: 0 },
+				),
+			).toThrow(TypeError)
+			expect(() =>
+				compareVersions(
+					{ major: 1, minor: null, patch: 0 } as unknown as {
+						major: number
+						minor: number
+						patch: number
+					},
+					{ major: 1, minor: 0, patch: 0 },
+				),
+			).toThrow("compareVersions: a must have numeric major, minor, and patch properties")
 		})
 	})
 

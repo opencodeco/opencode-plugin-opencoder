@@ -16,10 +16,12 @@ export interface ParsedVersion {
  *
  * @param version - The version string (e.g., "1.2.3")
  * @returns Parsed version object or null if invalid
+ * @throws {TypeError} If version is not a string
  *
  * @example
  * parseVersion("1.2.3")  // { major: 1, minor: 2, patch: 3 }
  * parseVersion("invalid")  // null
+ * parseVersion(null)  // throws TypeError
  */
 export function parseVersion(version: string): ParsedVersion | null
 
@@ -29,11 +31,13 @@ export function parseVersion(version: string): ParsedVersion | null
  * @param a - First version
  * @param b - Second version
  * @returns -1 if a < b, 0 if a == b, 1 if a > b
+ * @throws {TypeError} If a or b is not a valid ParsedVersion object with numeric major, minor, and patch properties
  *
  * @example
  * compareVersions({ major: 1, minor: 0, patch: 0 }, { major: 2, minor: 0, patch: 0 })  // -1
  * compareVersions({ major: 1, minor: 0, patch: 0 }, { major: 1, minor: 0, patch: 0 })  // 0
  * compareVersions({ major: 2, minor: 0, patch: 0 }, { major: 1, minor: 0, patch: 0 })  // 1
+ * compareVersions({}, {})  // throws TypeError
  */
 export function compareVersions(a: ParsedVersion, b: ParsedVersion): -1 | 0 | 1
 

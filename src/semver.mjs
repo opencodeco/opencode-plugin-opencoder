@@ -10,8 +10,14 @@
  *
  * @param {string} version - The version string (e.g., "1.2.3")
  * @returns {{ major: number, minor: number, patch: number } | null} Parsed version or null if invalid
+ * @throws {TypeError} If version is not a string
  */
 export function parseVersion(version) {
+	if (typeof version !== "string") {
+		throw new TypeError(
+			`parseVersion: version must be a string, got ${version === null ? "null" : typeof version}`,
+		)
+	}
 	const match = version.match(/^(\d+)\.(\d+)\.(\d+)$/)
 	if (!match) return null
 	return {
@@ -22,13 +28,42 @@ export function parseVersion(version) {
 }
 
 /**
+ * Validates that a value is a valid ParsedVersion object.
+ *
+ * @param {unknown} value - The value to validate
+ * @param {string} paramName - The parameter name for error messages
+ * @throws {TypeError} If value is not a valid ParsedVersion object
+ */
+function validateParsedVersion(value, paramName) {
+	if (value === null || value === undefined) {
+		throw new TypeError(
+			`compareVersions: ${paramName} must be a ParsedVersion object, got ${value === null ? "null" : "undefined"}`,
+		)
+	}
+	if (typeof value !== "object") {
+		throw new TypeError(
+			`compareVersions: ${paramName} must be a ParsedVersion object, got ${typeof value}`,
+		)
+	}
+	const v = /** @type {Record<string, unknown>} */ (value)
+	if (typeof v.major !== "number" || typeof v.minor !== "number" || typeof v.patch !== "number") {
+		throw new TypeError(
+			`compareVersions: ${paramName} must have numeric major, minor, and patch properties`,
+		)
+	}
+}
+
+/**
  * Compares two parsed version objects.
  *
  * @param {{ major: number, minor: number, patch: number }} a - First version
  * @param {{ major: number, minor: number, patch: number }} b - Second version
  * @returns {number} -1 if a < b, 0 if a == b, 1 if a > b
+ * @throws {TypeError} If a or b is not a valid ParsedVersion object
  */
 export function compareVersions(a, b) {
+	validateParsedVersion(a, "a")
+	validateParsedVersion(b, "b")
 	if (a.major !== b.major) return a.major < b.major ? -1 : 1
 	if (a.minor !== b.minor) return a.minor < b.minor ? -1 : 1
 	if (a.patch !== b.patch) return a.patch < b.patch ? -1 : 1
