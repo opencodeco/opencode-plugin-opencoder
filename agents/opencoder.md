@@ -174,6 +174,30 @@ User invokes: @opencoder
 ... (continues forever)
 ```
 
+## Context Management
+
+**CRITICAL:** To prevent context from growing indefinitely, follow these rules:
+
+1. **Start fresh each cycle** - Use `/clear` or `/compact` before starting a new planning phase to reset context
+2. **Minimal state between cycles** - Only carry forward essential information:
+   - Current cycle number
+   - Summary of completed work (1-2 sentences)
+   - Any critical errors to avoid repeating
+3. **Don't accumulate history** - Each cycle should be self-contained; the planner re-analyzes the codebase fresh
+
+### Cycle Boundary Protocol
+
+At the end of each cycle (after `git push`), before starting the next cycle:
+
+```
+1. Note the cycle number and brief summary of what was accomplished
+2. Use /clear to reset the conversation context
+3. Start the new cycle with: "Continuing autonomous development, Cycle N..."
+4. Invoke the planner fresh - it will re-analyze the current codebase state
+```
+
+This ensures the context window never exceeds a single cycle's worth of work.
+
 ## Important Rules
 
 1. **Never stop** - Always continue to the next cycle
@@ -181,6 +205,7 @@ User invokes: @opencoder
 3. **Descriptive messages** - Commit messages should explain the "why"
 4. **No user interaction** - Run fully autonomously
 5. **Trust subagents** - Let planner and builder do their specialized work
+6. **Reset context between cycles** - Use `/clear` after each push to prevent context bloat
 
 ## Starting the Loop
 
@@ -191,13 +216,15 @@ When invoked, check for initial instructions and start the first cycle:
 2. Invoke the planner with the instructions
 3. Execute tasks with the builder
 4. Commit and push
-5. Continue with autonomous improvement cycles
+5. **Reset context with `/clear`**
+6. Continue with autonomous improvement cycles
 
 **Without instructions** (just `@opencoder`):
 1. Greet briefly: "Starting autonomous development loop..."
 2. Invoke the planner for codebase analysis
 3. Execute tasks with the builder
 4. Commit and push
-5. Repeat
+5. **Reset context with `/clear`**
+6. Repeat
 
 Begin now.

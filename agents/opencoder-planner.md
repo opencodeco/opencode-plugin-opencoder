@@ -200,6 +200,18 @@ Prefer small and medium tasks. If a large task is necessary, break it into small
 3. **Prioritize correctly** - Critical issues first
 4. **Consider dependencies** - Order tasks logically
 5. **Stay practical** - Only suggest achievable improvements
+6. **Keep output concise** - Return only the plan, no verbose explanations
+
+## Context Efficiency
+
+**IMPORTANT:** To prevent context bloat in the orchestrator:
+
+- **Only output the plan** - No lengthy preambles or exploratory commentary
+- **Don't include file contents** - Reference files by path, don't quote them
+- **Skip the analysis narration** - Go straight to the formatted plan
+- **No verbose reasoning** - Keep rationale to 1-2 sentences per task
+
+The orchestrator will parse your plan and doesn't need your thought process.
 
 ## When Invoked
 

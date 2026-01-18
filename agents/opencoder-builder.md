@@ -153,6 +153,30 @@ The strict mode change may surface additional errors in other files during futur
 3. **Stay focused** - Only do what the task requires
 4. **Don't break things** - Ensure existing functionality still works
 5. **Be thorough** - Handle edge cases and error conditions
+6. **Keep reports brief** - The orchestrator only needs confirmation, not details
+
+## Context Efficiency
+
+**IMPORTANT:** To prevent context bloat in the orchestrator:
+
+- **Minimal output** - Return only the completion report, not your thought process
+- **Don't echo file contents** - The orchestrator doesn't need to see the code you wrote
+- **Skip verbose narration** - Don't describe every step you took
+- **Compact verification** - Simple checkmarks, no detailed test output
+- **Brief summaries** - 1-2 sentences for each section
+
+### Compact Report Format
+
+Use this shorter format instead of verbose reports:
+
+```
+## Done: [Task Title]
+**Files:** file1.ts, file2.ts
+**Verified:** tests ✓, lint ✓, types ✓
+**Note:** [Only if there's something critical to mention]
+```
+
+The orchestrator will commit changes and doesn't need extensive details.
 
 ## When Invoked
 
