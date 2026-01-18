@@ -8,7 +8,69 @@
  * does not currently support dynamic agent registration.
  */
 
-import type { Plugin } from "@opencode-ai/plugin"
+import type { Hooks, Plugin, PluginInput } from "@opencode-ai/plugin"
+
+/** Plugin metadata for logging */
+const PLUGIN_NAME = "opencoder"
+
+/**
+ * Creates lifecycle hooks for debugging and visibility.
+ *
+ * These hooks provide optional logging points for plugin activity.
+ * Set OPENCODER_DEBUG=1 environment variable to enable debug logging.
+ *
+ * @param ctx - Plugin context from OpenCode
+ * @returns Hooks object with lifecycle callbacks
+ */
+function createLifecycleHooks(ctx: PluginInput): Hooks {
+	const debug = process.env.OPENCODER_DEBUG === "1"
+
+	const log = (message: string, data?: Record<string, unknown>) => {
+		if (debug) {
+			const timestamp = new Date().toISOString()
+			const prefix = `[${timestamp}] [${PLUGIN_NAME}]`
+			const context = { directory: ctx.directory, ...data }
+			console.log(prefix, message, JSON.stringify(context, null, 2))
+		}
+	}
+
+	return {
+		/**
+		 * Called on OpenCode events (sessions, messages, etc.)
+		 */
+		event: async ({ event }) => {
+			log("Event received", {
+				type: event.type,
+				properties: Object.keys(event.properties),
+			})
+		},
+
+		/**
+		 * Called before tool execution
+		 */
+		"tool.execute.before": async ({ tool, sessionID, callID }, output) => {
+			log("Tool executing", {
+				tool,
+				sessionID,
+				callID,
+				argsKeys: Object.keys(output.args || {}),
+			})
+		},
+
+		/**
+		 * Called after tool execution completes
+		 */
+		"tool.execute.after": async ({ tool, sessionID, callID }, output) => {
+			log("Tool completed", {
+				tool,
+				sessionID,
+				callID,
+				title: output.title,
+				outputLength: output.output?.length ?? 0,
+			})
+		},
+	}
+}
 
 /**
  * The OpenCoder plugin function.
@@ -22,10 +84,8 @@ import type { Plugin } from "@opencode-ai/plugin"
  *   opencode @opencoder
  *
  * @param ctx - Plugin context provided by OpenCode
- * @returns Hooks object for event subscriptions (minimal for now)
+ * @returns Hooks object with lifecycle callbacks for debugging visibility
  */
-export const OpenCoderPlugin: Plugin = async (_ctx) => {
-	// Return minimal hooks object
-	// Can be extended with event handlers in the future
-	return {}
+export const OpenCoderPlugin: Plugin = async (ctx) => {
+	return createLifecycleHooks(ctx)
 }
