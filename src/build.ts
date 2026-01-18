@@ -139,6 +139,61 @@ export function createSessionStats(): SessionStats {
 }
 
 /**
+ * Build actionable error message with suggestions
+ */
+function buildErrorMessage(error: unknown, context: string): string {
+	const errorStr = error instanceof Error ? error.message : String(error)
+	const suggestions: string[] = []
+
+	// Provide context-specific suggestions
+	if (context === "init") {
+		if (errorStr.includes("OPENCODE_TOKEN") || errorStr.includes("token")) {
+			suggestions.push("Ensure OPENCODE_TOKEN environment variable is set")
+			suggestions.push("Run 'opencode' command to verify your OpenCode installation")
+		}
+		if (errorStr.includes("port") || errorStr.includes("already in use")) {
+			suggestions.push("Check if another instance of OpenCode is running")
+			suggestions.push("Try waiting a few seconds before restarting")
+		}
+	} else if (context === "session") {
+		suggestions.push("Check your internet connection")
+		suggestions.push("Verify the OpenCode server is running and accessible")
+		suggestions.push("Try increasing cycleTimeoutMinutes in configuration")
+		suggestions.push("Check for firewall or proxy issues blocking OpenCode")
+	} else if (context === "model") {
+		if (errorStr.includes("model") || errorStr.includes("provider")) {
+			suggestions.push(
+				"Verify model format is 'provider/model' (e.g., 'anthropic/claude-sonnet-4')",
+			)
+			suggestions.push("Check that you have API access to the specified model")
+			suggestions.push("Ensure API credentials are correctly configured")
+		}
+	} else if (context === "response") {
+		suggestions.push("Check the OpenCode server logs for detailed error information")
+		suggestions.push("Verify the prompt is well-formed and not too long")
+		suggestions.push("Try reducing verbosity to see clearer error details")
+		suggestions.push("Check .opencode/opencoder/logs/main.log for debugging information")
+	} else if (context === "task") {
+		suggestions.push("Review the task description for clarity and specificity")
+		suggestions.push("Check if the task depends on external services or files")
+		suggestions.push("Try simplifying the task or breaking it into smaller steps")
+		suggestions.push("Use ideas queue to provide more detailed task guidance")
+	}
+
+	let message = errorStr
+
+	// Add suggestions if available
+	if (suggestions.length > 0) {
+		message += "\n\nSuggestions:"
+		suggestions.forEach((s, i) => {
+			message += `\n  ${i + 1}. ${s}`
+		})
+	}
+
+	return message
+}
+
+/**
  * Extract contextual information from tool input for display
  */
 function extractToolContext(input: unknown): string {
@@ -403,7 +458,8 @@ export class Builder {
 			// Start event subscription
 			await this.subscribeToEvents()
 		} catch (err) {
-			this.logger.logError(`Failed to start OpenCode server: ${err}`)
+			const message = buildErrorMessage(err, "init")
+			this.logger.logError(`Failed to start OpenCode server:\n${message}`)
 			throw err
 		}
 	}
@@ -422,7 +478,8 @@ export class Builder {
 		})
 
 		if (!session.data) {
-			throw new Error("Failed to create session")
+			const message = buildErrorMessage("Failed to create session for planning", "session")
+			throw new Error(message)
 		}
 
 		this.sessionId = session.data.id
@@ -451,7 +508,8 @@ export class Builder {
 			try {
 				await this.ensureSession(cycle, `Cycle ${cycle} - Recovery`)
 			} catch (err) {
-				return { success: false, error: `Failed to create session: ${err}` }
+				const message = buildErrorMessage(err, "session")
+				return { success: false, error: `Failed to create session:\n${message}` }
 			}
 		}
 
@@ -461,7 +519,8 @@ export class Builder {
 			const result = await this.sendPrompt(prompt, this.config.buildModel, "Building")
 			return { success: true, output: result }
 		} catch (err) {
-			return { success: false, error: String(err) }
+			const message = buildErrorMessage(err, "task")
+			return { success: false, error: message }
 		}
 	}
 
@@ -493,7 +552,8 @@ export class Builder {
 		})
 
 		if (!session.data) {
-			throw new Error("Failed to create session for idea selection")
+			const message = buildErrorMessage("Failed to create session for idea selection", "session")
+			throw new Error(message)
 		}
 
 		const tempSessionId = session.data.id
@@ -549,7 +609,8 @@ export class Builder {
 	 */
 	private async sendPrompt(prompt: string, model: string, phase: string): Promise<string> {
 		if (!this.sessionId) {
-			throw new Error("No active session")
+			const message = buildErrorMessage("No active session available", "session")
+			throw new Error(message)
 		}
 
 		return this.sendPromptToSession(this.sessionId, prompt, model, phase)
@@ -583,12 +644,14 @@ export class Builder {
 		this.logger.stopSpinner()
 
 		if (!result.data) {
-			throw new Error("No response from OpenCode")
+			const message = buildErrorMessage("No response received from OpenCode model", "response")
+			throw new Error(message)
 		}
 
 		const text = extractText(result.data.parts as Part[] | undefined)
 		if (!text) {
-			throw new Error("Empty response from OpenCode")
+			const message = buildErrorMessage("Empty response from OpenCode model", "response")
+			throw new Error(message)
 		}
 
 		return text
@@ -606,7 +669,8 @@ export class Builder {
 			// Process events in background
 			this.processEvents(events.stream)
 		} catch (err) {
-			this.logger.logVerbose(`Event subscription setup: ${err}`)
+			// Event subscription is best-effort and doesn't block execution
+			this.logger.logVerbose(`Event subscription setup (non-critical): ${err}`)
 		}
 	}
 
@@ -682,7 +746,8 @@ export class Builder {
 		})
 
 		if (!session.data) {
-			throw new Error("Failed to create session")
+			const message = buildErrorMessage(`Failed to create session: ${sessionTitle}`, "session")
+			throw new Error(message)
 		}
 
 		this.sessionId = session.data.id
