@@ -204,4 +204,5 @@ export interface CliOptions {
 	commitSignoff?: boolean
 	status?: boolean
 	metricsReset?: boolean
+	ideasList?: boolean
 }

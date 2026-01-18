@@ -227,6 +227,27 @@ describe("parseCli", () => {
 		})
 	})
 
+	describe("ideas-list option", () => {
+		test("parses --ideas-list flag", () => {
+			const result = parseCli(argv("--ideas-list"))
+
+			expect(result.options.ideasList).toBe(true)
+		})
+
+		test("parses --ideas-list with project option", () => {
+			const result = parseCli(argv("--ideas-list", "-p", "./myproject"))
+
+			expect(result.options.ideasList).toBe(true)
+			expect(result.options.project).toBe("./myproject")
+		})
+
+		test("ideasList is undefined when not provided", () => {
+			const result = parseCli(argv("-m", "anthropic/claude-sonnet-4"))
+
+			expect(result.options.ideasList).toBeUndefined()
+		})
+	})
+
 	describe("git options", () => {
 		test("parses --no-auto-commit flag", () => {
 			const result = parseCli(argv("--no-auto-commit"))

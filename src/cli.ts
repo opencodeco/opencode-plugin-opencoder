@@ -2,11 +2,13 @@
  * CLI argument parsing and program setup
  */
 
-import { resolve } from "node:path"
+import { existsSync, mkdirSync } from "node:fs"
+import { join, resolve } from "node:path"
 import { createInterface } from "node:readline"
 import { Command } from "commander"
 import { loadConfig } from "./config.ts"
-import { initializePaths } from "./fs.ts"
+import { getTimestampForFilename, initializePaths } from "./fs.ts"
+import { countIdeas, getIdeaSummary, loadAllIdeas } from "./ideas.ts"
 import { runLoop } from "./loop.ts"
 import { formatMetricsSummary, loadMetrics, resetMetrics, saveMetrics } from "./metrics.ts"
 import type { CliOptions } from "./types.ts"
@@ -21,6 +23,51 @@ export interface ParsedCli {
 	options: CliOptions
 	/** Optional hint/instruction for the AI, passed as a positional argument */
 	hint?: string
+}
+
+/**
+ * Handle the 'idea' subcommand: save an idea to the queue
+ */
+async function handleIdeaCommand(
+	description: string,
+	opts: Record<string, unknown>,
+): Promise<void> {
+	try {
+		const projectDir = opts.project ? resolve(opts.project as string) : process.cwd()
+		const paths = initializePaths(projectDir)
+
+		// Ensure ideas directory exists
+		if (!existsSync(paths.ideasDir)) {
+			mkdirSync(paths.ideasDir, { recursive: true })
+		}
+
+		// Generate filename: YYYYMMDD_HHMMSS_slugified-description.md
+		const timestamp = getTimestampForFilename()
+		const slug = description
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, "-")
+			.replace(/^-+|-+$/g, "")
+			.slice(0, 50) // Limit slug length
+
+		const filename = `${timestamp}_${slug}.md`
+		const filepath = join(paths.ideasDir, filename)
+
+		// Create markdown content
+		const content = `# ${description}
+
+<!-- Add details, steps, or context here -->
+`
+
+		// Write the file
+		await Bun.write(filepath, content)
+
+		console.log(`\n✓ Idea added to queue: ${filename}`)
+		console.log(`  Location: ${filepath}`)
+		console.log(`\nYou can edit this file to add more details before opencoder processes it.\n`)
+	} catch (err) {
+		console.error(`Error: Failed to add idea: ${err instanceof Error ? err.message : String(err)}`)
+		process.exit(1)
+	}
 }
 
 /**
@@ -44,6 +91,28 @@ function createProgram(): Command {
 		.option("-s, --signoff", "Add Signed-off-by line to commits")
 		.option("--status", "Display metrics summary and exit")
 		.option("--metrics-reset", "Reset metrics to default values (requires confirmation)")
+		.option("--ideas-list", "List all ideas in the queue and exit")
+
+	// Add 'idea' subcommand
+	const ideaCommand = program
+		.command("idea")
+		.description("Add a new idea to the queue")
+		.argument("<description>", "Description of the idea")
+		.option("-p, --project <dir>", "Project directory (default: current directory)")
+		.action(async (description: string, opts: Record<string, unknown>) => {
+			await handleIdeaCommand(description, opts)
+		})
+
+	// Add help text for idea command
+	ideaCommand.addHelpText(
+		"after",
+		`
+Examples:
+  $ opencoder idea "Fix login bug"
+  $ opencoder idea "Add dark mode support" -p ./myproject
+  $ opencoder idea "Implement user authentication with JWT tokens"
+`,
+	)
 
 	// Add examples to help
 	program.addHelpText(
@@ -80,6 +149,21 @@ Examples:
   $ opencoder --metrics-reset
     Reset metrics to default values (with confirmation)
 
+  $ opencoder --ideas-list
+    List all ideas in the queue without starting the loop
+
+  $ opencoder --ideas-list -p ./myproject
+    List ideas for a specific project
+
+  $ opencoder idea "Fix login bug"
+    Add a new idea to the queue
+
+  $ opencoder idea "Add dark mode support" -p ./myproject
+    Add idea to a specific project
+
+Commands:
+    idea <description>          Add a new idea to the queue
+
 Options:
     -p, --project <dir>         Project directory (default: current directory)
     -m, --model <model>         Model for both plan and build
@@ -92,6 +176,7 @@ Options:
     -s, --signoff               Add Signed-off-by line to commits
     --status                    Display metrics summary and exit
     --metrics-reset             Reset metrics to default values (requires confirmation)
+    --ideas-list                List all ideas in the queue and exit
 
 Environment variables:
     OPENCODER_PLAN_MODEL        Default plan model
@@ -175,6 +260,7 @@ export function parseCli(argv: string[] = process.argv): ParsedCli {
 			commitSignoff: opts.signoff as boolean | undefined,
 			status: opts.status as boolean | undefined,
 			metricsReset: opts.metricsReset as boolean | undefined,
+			ideasList: opts.ideasList as boolean | undefined,
 		},
 		hint: args[0],
 	}
@@ -213,6 +299,7 @@ export async function run(): Promise<void> {
 				commitSignoff: opts.signoff as boolean | undefined,
 				status: opts.status as boolean | undefined,
 				metricsReset: opts.metricsReset as boolean | undefined,
+				ideasList: opts.ideasList as boolean | undefined,
 			}
 
 			// Handle --version flag: display version info and exit
@@ -263,6 +350,36 @@ export async function run(): Promise<void> {
 					console.log("\nMetrics reset cancelled.\n")
 				}
 
+				return
+			}
+
+			// Handle --ideas-list flag: display ideas queue and exit
+			if (cliOptions.ideasList) {
+				const projectDir = cliOptions.project ? resolve(cliOptions.project) : process.cwd()
+				const paths = initializePaths(projectDir)
+
+				const ideas = await loadAllIdeas(paths.ideasDir)
+				const count = await countIdeas(paths.ideasDir)
+
+				console.log("\nIdeas Queue")
+				console.log("===========\n")
+
+				if (count === 0) {
+					console.log("No ideas in queue.")
+					console.log(`\nTo add ideas, place .md files in: ${paths.ideasDir}`)
+				} else {
+					console.log(`Found ${count} idea(s):\n`)
+					for (let i = 0; i < ideas.length; i++) {
+						const idea = ideas[i]
+						if (!idea) continue
+						const summary = getIdeaSummary(idea.content)
+						console.log(`  ${i + 1}. ${idea.filename}`)
+						console.log(`     ${summary}`)
+						console.log("")
+					}
+				}
+
+				console.log("")
 				return
 			}
 
