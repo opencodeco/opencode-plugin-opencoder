@@ -31,6 +31,8 @@ export interface Config {
 	autoPush: boolean
 	/** Add signoff flag (-s) to commits */
 	commitSignoff: boolean
+	/** Maximum minutes per cycle before timeout (0 = no limit) */
+	cycleTimeoutMinutes: number
 }
 
 /** Persisted state */
@@ -53,6 +55,8 @@ export interface State {
 	retryCount: number
 	/** ISO timestamp of last error (for backoff calculation) */
 	lastErrorTime?: string
+	/** ISO timestamp when current cycle started */
+	cycleStartTime?: string
 }
 
 /** Runtime state with additional non-persisted fields */
@@ -137,6 +141,7 @@ export interface ConfigFile {
 	autoCommit?: boolean
 	autoPush?: boolean
 	commitSignoff?: boolean
+	cycleTimeoutMinutes?: number
 }
 
 /** CLI options from argument parsing */

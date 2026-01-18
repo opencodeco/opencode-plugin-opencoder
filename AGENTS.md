@@ -270,6 +270,7 @@ OPENCODER_TASK_PAUSE_SECONDS=2
 OPENCODER_AUTO_COMMIT=true
 OPENCODER_AUTO_PUSH=true
 OPENCODER_COMMIT_SIGNOFF=false
+OPENCODER_CYCLE_TIMEOUT_MINUTES=60
 ```
 
 ### Config File (.opencode/opencoder/config.json)
@@ -283,7 +284,8 @@ OPENCODER_COMMIT_SIGNOFF=false
   "taskPauseSeconds": 2,
   "autoCommit": true,
   "autoPush": true,
-  "commitSignoff": false
+  "commitSignoff": false,
+  "cycleTimeoutMinutes": 60
 }
 ```
 

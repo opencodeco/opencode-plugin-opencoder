@@ -9,13 +9,15 @@ import { Logger } from "../src/logger.ts"
 import {
 	archivePlan,
 	calculateBackoff,
+	getCycleElapsedTime,
+	isCycleTimedOut,
 	isShutdownRequested,
 	logStartupInfo,
 	requestShutdown,
 	resetShutdownFlags,
 	sleep,
 } from "../src/loop.ts"
-import type { Config, Paths } from "../src/types.ts"
+import type { Config, Paths, RuntimeState } from "../src/types.ts"
 
 const TEST_DIR = "/tmp/opencoder-test-loop"
 
@@ -30,6 +32,7 @@ function createTestPaths(): Paths {
 		alertsFile: join(TEST_DIR, "alerts.log"),
 		historyDir: join(TEST_DIR, "history"),
 		ideasDir: join(TEST_DIR, "ideas"),
+		ideasHistoryDir: join(TEST_DIR, "ideas", "history"),
 		configFile: join(TEST_DIR, "config.json"),
 	}
 }
@@ -48,6 +51,22 @@ function createTestConfig(overrides?: Partial<Config>): Config {
 		autoCommit: true,
 		autoPush: true,
 		commitSignoff: false,
+		cycleTimeoutMinutes: 60,
+		...overrides,
+	}
+}
+
+/** Create a test RuntimeState object */
+function createTestState(overrides?: Partial<RuntimeState>): RuntimeState {
+	return {
+		cycle: 1,
+		phase: "plan",
+		taskIndex: 0,
+		lastUpdate: new Date().toISOString(),
+		retryCount: 0,
+		totalTasks: 0,
+		currentTaskNum: 0,
+		currentTaskDesc: "",
 		...overrides,
 	}
 }
@@ -456,6 +475,95 @@ Some notes with Unicode: 日本語 🎉`
 			const archivedContent = await Bun.file(join(paths.historyDir, filename as string)).text()
 
 			expect(archivedContent).toBe(planContent)
+		})
+	})
+
+	describe("isCycleTimedOut", () => {
+		test("returns false when timeout is disabled (0)", () => {
+			const state = createTestState({
+				cycleStartTime: new Date(Date.now() - 120 * 60 * 1000).toISOString(), // 2 hours ago
+			})
+			const config = createTestConfig({ cycleTimeoutMinutes: 0 })
+
+			expect(isCycleTimedOut(state, config)).toBe(false)
+		})
+
+		test("returns false when no start time is set", () => {
+			const state = createTestState({ cycleStartTime: undefined })
+			const config = createTestConfig({ cycleTimeoutMinutes: 60 })
+
+			expect(isCycleTimedOut(state, config)).toBe(false)
+		})
+
+		test("returns false when within timeout", () => {
+			const state = createTestState({
+				cycleStartTime: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 minutes ago
+			})
+			const config = createTestConfig({ cycleTimeoutMinutes: 60 })
+
+			expect(isCycleTimedOut(state, config)).toBe(false)
+		})
+
+		test("returns true when timeout exceeded", () => {
+			const state = createTestState({
+				cycleStartTime: new Date(Date.now() - 65 * 60 * 1000).toISOString(), // 65 minutes ago
+			})
+			const config = createTestConfig({ cycleTimeoutMinutes: 60 })
+
+			expect(isCycleTimedOut(state, config)).toBe(true)
+		})
+
+		test("returns true exactly at timeout", () => {
+			const state = createTestState({
+				cycleStartTime: new Date(Date.now() - 60 * 60 * 1000).toISOString(), // Exactly 60 minutes ago
+			})
+			const config = createTestConfig({ cycleTimeoutMinutes: 60 })
+
+			expect(isCycleTimedOut(state, config)).toBe(true)
+		})
+
+		test("works with short timeout values", () => {
+			const state = createTestState({
+				cycleStartTime: new Date(Date.now() - 2 * 60 * 1000).toISOString(), // 2 minutes ago
+			})
+			const config = createTestConfig({ cycleTimeoutMinutes: 1 })
+
+			expect(isCycleTimedOut(state, config)).toBe(true)
+		})
+	})
+
+	describe("getCycleElapsedTime", () => {
+		test("returns empty string when no start time", () => {
+			const state = createTestState({ cycleStartTime: undefined })
+
+			expect(getCycleElapsedTime(state)).toBe("")
+		})
+
+		test("returns seconds only for short durations", () => {
+			const state = createTestState({
+				cycleStartTime: new Date(Date.now() - 30 * 1000).toISOString(), // 30 seconds ago
+			})
+
+			const elapsed = getCycleElapsedTime(state)
+			expect(elapsed).toMatch(/^\d+s$/)
+		})
+
+		test("returns minutes and seconds for longer durations", () => {
+			const state = createTestState({
+				cycleStartTime: new Date(Date.now() - (5 * 60 + 30) * 1000).toISOString(), // 5m 30s ago
+			})
+
+			const elapsed = getCycleElapsedTime(state)
+			expect(elapsed).toMatch(/^\d+m \d+s$/)
+		})
+
+		test("handles hours worth of minutes", () => {
+			const state = createTestState({
+				cycleStartTime: new Date(Date.now() - 90 * 60 * 1000).toISOString(), // 90 minutes ago
+			})
+
+			const elapsed = getCycleElapsedTime(state)
+			expect(elapsed).toContain("90m")
 		})
 	})
 })

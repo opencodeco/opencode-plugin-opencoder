@@ -114,6 +114,7 @@ describe("state", () => {
 				currentTaskNum: 1,
 				currentTaskDesc: "Test task",
 				lastUpdate: "",
+				retryCount: 0,
 			}
 
 			await saveState(stateFile, state)
@@ -125,6 +126,29 @@ describe("state", () => {
 			expect(saved.phase).toBe("plan")
 			expect(saved.taskIndex).toBe(1)
 			expect(saved.lastUpdate).toBeTruthy()
+		})
+
+		test("saves cycleStartTime when present", async () => {
+			const stateFile = join(TEST_DIR, "save-cycle-time.json")
+			const startTime = new Date().toISOString()
+			const state = {
+				cycle: 1,
+				phase: "build" as const,
+				taskIndex: 0,
+				totalTasks: 3,
+				currentTaskNum: 1,
+				currentTaskDesc: "Task",
+				lastUpdate: "",
+				retryCount: 0,
+				cycleStartTime: startTime,
+			}
+
+			await saveState(stateFile, state)
+
+			const content = await Bun.file(stateFile).text()
+			const saved = JSON.parse(content)
+
+			expect(saved.cycleStartTime).toBe(startTime)
 		})
 	})
 

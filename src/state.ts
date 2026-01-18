@@ -15,6 +15,7 @@ const DEFAULT_STATE: State = {
 	currentIdeaFilename: undefined,
 	retryCount: 0,
 	lastErrorTime: undefined,
+	cycleStartTime: undefined,
 }
 
 /**
@@ -78,6 +79,7 @@ export async function loadState(stateFile: string): Promise<RuntimeState> {
 			currentIdeaFilename: parsed.currentIdeaFilename,
 			retryCount: parsed.retryCount ?? DEFAULT_STATE.retryCount,
 			lastErrorTime: parsed.lastErrorTime,
+			cycleStartTime: parsed.cycleStartTime,
 		}
 
 		return toRuntimeState(state)
@@ -114,6 +116,7 @@ export async function saveState(stateFile: string, state: RuntimeState): Promise
 		currentIdeaFilename: state.currentIdeaFilename,
 		retryCount: state.retryCount,
 		lastErrorTime: state.lastErrorTime,
+		cycleStartTime: state.cycleStartTime,
 	}
 
 	const content = JSON.stringify(persistedState, null, 2)
@@ -172,5 +175,6 @@ export function newCycleState(currentCycle: number): Partial<RuntimeState> {
 		currentIdeaFilename: undefined,
 		retryCount: 0,
 		lastErrorTime: undefined,
+		cycleStartTime: undefined,
 	}
 }

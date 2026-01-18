@@ -79,6 +79,38 @@ export async function runLoop(config: Config): Promise<void> {
 		while (!shutdownRequested) {
 			logger.setCycleLog(state.cycle)
 
+			// Start cycle timer if not already set
+			if (!state.cycleStartTime) {
+				state.cycleStartTime = getISOTimestamp()
+				logger.logVerbose(`Cycle ${state.cycle} started at ${state.cycleStartTime}`)
+			}
+
+			// Check for cycle timeout
+			if (isCycleTimedOut(state, config)) {
+				const elapsed = getCycleElapsedTime(state)
+				logger.alert(
+					`TIMEOUT: Cycle ${state.cycle} exceeded ${config.cycleTimeoutMinutes} minute limit (elapsed: ${elapsed})`,
+				)
+				logger.warn("Forcing cycle completion due to timeout...")
+
+				// Force transition to evaluation to complete the cycle
+				if (state.phase === "plan") {
+					// Can't complete without a plan, start new cycle
+					logger.warn("Timeout during planning, starting new cycle...")
+					state.cycle++
+					state.phase = "plan"
+					state.cycleStartTime = undefined
+					state.currentIdeaPath = undefined
+					state.currentIdeaFilename = undefined
+					builder.clearSession()
+				} else if (state.phase === "build") {
+					// Skip remaining tasks and move to evaluation
+					logger.warn("Timeout during build, skipping to evaluation...")
+					state.phase = "evaluation"
+				}
+				// If already in evaluation, it will complete normally
+			}
+
 			try {
 				switch (state.phase) {
 					case "init":
@@ -466,6 +498,7 @@ async function runEvaluationPhase(
 		state.currentTaskDesc = ""
 		state.currentIdeaPath = undefined
 		state.currentIdeaFilename = undefined
+		state.cycleStartTime = undefined // Reset for new cycle
 
 		// Clear session for new cycle
 		builder.clearSession()
@@ -570,6 +603,50 @@ async function skipCurrentTask(state: RuntimeState, paths: Paths, logger: Logger
  */
 function escapeRegExp(str: string): string {
 	return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+/**
+ * Check if the current cycle has exceeded the timeout.
+ * @param state - Runtime state with cycle start time
+ * @param config - Configuration with timeout setting
+ * @returns True if cycle has timed out, false otherwise
+ */
+export function isCycleTimedOut(state: RuntimeState, config: Config): boolean {
+	if (config.cycleTimeoutMinutes <= 0) {
+		return false // Timeout disabled
+	}
+
+	if (!state.cycleStartTime) {
+		return false // No start time recorded
+	}
+
+	const startTime = new Date(state.cycleStartTime).getTime()
+	const elapsed = Date.now() - startTime
+	const timeoutMs = config.cycleTimeoutMinutes * 60 * 1000
+
+	return elapsed >= timeoutMs
+}
+
+/**
+ * Get elapsed time in the current cycle as a human-readable string.
+ * @param state - Runtime state with cycle start time
+ * @returns Formatted elapsed time (e.g., "45m 30s") or empty string if no start time
+ */
+export function getCycleElapsedTime(state: RuntimeState): string {
+	if (!state.cycleStartTime) {
+		return ""
+	}
+
+	const startTime = new Date(state.cycleStartTime).getTime()
+	const elapsed = Date.now() - startTime
+
+	const minutes = Math.floor(elapsed / 60000)
+	const seconds = Math.floor((elapsed % 60000) / 1000)
+
+	if (minutes > 0) {
+		return `${minutes}m ${seconds}s`
+	}
+	return `${seconds}s`
 }
 
 /**

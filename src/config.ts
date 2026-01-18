@@ -23,6 +23,7 @@ const DEFAULTS: Omit<Config, "planModel" | "buildModel" | "projectDir"> = {
 	autoCommit: true,
 	autoPush: true,
 	commitSignoff: false,
+	cycleTimeoutMinutes: 60,
 }
 
 /** Environment variable prefix */
@@ -111,6 +112,7 @@ async function loadConfigFile(projectDir: string): Promise<Partial<Config>> {
 			autoCommit: parsed.autoCommit,
 			autoPush: parsed.autoPush,
 			commitSignoff: parsed.commitSignoff,
+			cycleTimeoutMinutes: parsed.cycleTimeoutMinutes,
 		})
 	} catch (err) {
 		console.warn(`Warning: Failed to parse config.json: ${err}`)
@@ -165,6 +167,12 @@ function loadEnvConfig(): Partial<Config> {
 
 	const commitSignoff = process.env[`${ENV_PREFIX}COMMIT_SIGNOFF`]
 	if (commitSignoff) config.commitSignoff = commitSignoff === "true" || commitSignoff === "1"
+
+	const cycleTimeout = process.env[`${ENV_PREFIX}CYCLE_TIMEOUT_MINUTES`]
+	if (cycleTimeout) {
+		const parsed = Number.parseInt(cycleTimeout, 10)
+		if (!Number.isNaN(parsed)) config.cycleTimeoutMinutes = parsed
+	}
 
 	return config
 }
