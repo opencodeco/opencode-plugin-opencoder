@@ -123,7 +123,7 @@ import type { Config, BuildResult } from "./types.ts"
 |---------|------------|---------|
 | Files | kebab-case or camelCase | `config.ts`, `fs.ts` |
 | Types/Interfaces | PascalCase | `Logger`, `State`, `BuildResult` |
-| Functions | camelCase | `runPlanning`, `markTaskComplete` |
+| Functions | camelCase | `runPlan`, `markTaskComplete` |
 | Constants | SCREAMING_SNAKE_CASE or camelCase | `DEFAULT_STATE`, `ENV_PREFIX` |
 | Variables | camelCase | `shutdownRequested` |
 
@@ -402,7 +402,7 @@ bun run dev -- -m anthropic/claude-sonnet-4 -p test-project
 
 ## Three-Phase Autonomous Loop
 
-1. **Planning Phase**: Generate a development plan (checks ideas queue first)
+1. **Plan Phase**: Generate a development plan (checks ideas queue first)
 2. **Build Phase**: Build tasks from the plan one by one
 3. **Eval Phase**: AI evaluates if cycle is complete (COMPLETE/NEEDS_WORK)
 
