@@ -15,6 +15,24 @@ import { AGENTS_TARGET_DIR, getAgentsSourceDir, getPackageRoot } from "./src/pat
 const packageRoot = getPackageRoot(import.meta.url)
 const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
 
+/**
+ * Main entry point for the preuninstall script.
+ *
+ * Removes agent markdown files that were installed by this package
+ * from the OpenCode configuration directory (~/.config/opencode/agents/).
+ * Only removes files that match agents in the package's agents/ directory.
+ *
+ * The function handles missing directories and files gracefully,
+ * continuing to remove remaining agents even if some fail.
+ *
+ * @returns {void}
+ *
+ * @throws {never} Does not throw - handles all errors internally
+ *
+ * Exit codes:
+ * - 0: Always exits successfully, even if no agents were removed or
+ *      some removals failed. This ensures npm uninstall completes.
+ */
 function main() {
 	console.log("opencode-plugin-opencoder: Removing agents...")
 

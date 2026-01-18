@@ -16,11 +16,27 @@ const packageRoot = getPackageRoot(import.meta.url)
 const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
 
 /**
- * Returns a user-friendly error message based on the error code
- * @param {Error & {code?: string}} error - The error object
+ * Returns a user-friendly error message based on the error code.
+ *
+ * Translates Node.js filesystem error codes into human-readable messages
+ * that help users understand and resolve installation issues.
+ *
+ * @param {Error & {code?: string}} error - The error object from a failed fs operation
  * @param {string} file - The filename being copied
  * @param {string} targetPath - The target path for the file
- * @returns {string} A helpful error message
+ * @returns {string} A helpful error message describing the issue and potential solution
+ *
+ * @example
+ * // Permission denied error
+ * const err = Object.assign(new Error(), { code: 'EACCES' })
+ * getErrorMessage(err, 'agent.md', '/home/user/.config/opencode/agents/agent.md')
+ * // Returns: "Permission denied. Check write permissions for /home/user/.config/opencode/agents"
+ *
+ * @example
+ * // File not found error
+ * const err = Object.assign(new Error(), { code: 'ENOENT' })
+ * getErrorMessage(err, 'missing.md', '/target/missing.md')
+ * // Returns: "Source file not found: missing.md"
  */
 function getErrorMessage(error, file, targetPath) {
 	const code = error.code
@@ -41,6 +57,25 @@ function getErrorMessage(error, file, targetPath) {
 	}
 }
 
+/**
+ * Main entry point for the postinstall script.
+ *
+ * Copies all agent markdown files from the package's agents/ directory
+ * to the OpenCode configuration directory (~/.config/opencode/agents/).
+ * This enables OpenCode to discover and use the installed agents.
+ *
+ * The function handles partial failures gracefully, installing as many
+ * agents as possible and reporting individual failures.
+ *
+ * @returns {void}
+ *
+ * @throws {never} Does not throw - uses process.exit() for error conditions
+ *
+ * Exit codes:
+ * - 0: All agents installed successfully, or partial success with some failures
+ * - 1: Complete failure - source directory missing, no agent files found,
+ *      or all file copies failed
+ */
 function main() {
 	console.log("opencode-plugin-opencoder: Installing agents...")
 
