@@ -1,16 +1,28 @@
-.PHONY: lint lint-fix format clean postinstall
+.PHONY: lint lint-fix format test typecheck clean install preuninstall
+
+install:
+	bun install
 
 lint:
-	bunx biome check src/
+	bun run lint
 
 lint-fix:
-	bunx biome check --write src/
+	bun run lint:fix
 
 format:
-	bunx biome format --write src/
+	bun run format
+
+test:
+	bun test
+
+typecheck:
+	bun run typecheck
 
 postinstall:
 	node postinstall.mjs
 
+preuninstall:
+	node preuninstall.mjs
+
 clean:
-	rm -rf node_modules bun.lockb
+	rm -rf node_modules bun.lock
