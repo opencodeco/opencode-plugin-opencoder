@@ -141,6 +141,18 @@ describe("paths.mjs exports", () => {
 			expect(result).toBe("Too many open files. Close some applications and try again")
 		})
 
+		it("should return target exists message for EEXIST error", () => {
+			const error = Object.assign(new Error("EEXIST"), { code: "EEXIST" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe(`Target already exists: ${testTargetPath}`)
+		})
+
+		it("should return is directory message for EISDIR error", () => {
+			const error = Object.assign(new Error("EISDIR"), { code: "EISDIR" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe(`Expected a file but found a directory: ${testTargetPath}`)
+		})
+
 		it("should return error message for unknown error codes", () => {
 			const error = Object.assign(new Error("Something went wrong"), { code: "UNKNOWN" })
 			const result = getErrorMessage(error, testFile, testTargetPath)

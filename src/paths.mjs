@@ -73,6 +73,10 @@ export function getErrorMessage(error, file, targetPath) {
 		case "EMFILE":
 		case "ENFILE":
 			return "Too many open files. Close some applications and try again"
+		case "EEXIST":
+			return `Target already exists: ${targetPath}`
+		case "EISDIR":
+			return `Expected a file but found a directory: ${targetPath}`
 		default:
 			return error.message || "Unknown error"
 	}
