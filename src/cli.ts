@@ -3,11 +3,12 @@
  */
 
 import { resolve } from "node:path"
+import { createInterface } from "node:readline"
 import { Command } from "commander"
 import { loadConfig } from "./config.ts"
 import { initializePaths } from "./fs.ts"
 import { runLoop } from "./loop.ts"
-import { formatMetricsSummary, loadMetrics } from "./metrics.ts"
+import { formatMetricsSummary, loadMetrics, resetMetrics, saveMetrics } from "./metrics.ts"
 import type { CliOptions } from "./types.ts"
 
 const VERSION = "1.0.0"
@@ -43,6 +44,7 @@ function createProgram(): Command {
 		.option("--no-auto-push", "Disable automatic push after cycles")
 		.option("-s, --signoff", "Add Signed-off-by line to commits")
 		.option("--status", "Display metrics summary and exit")
+		.option("--metrics-reset", "Reset metrics to default values (requires confirmation)")
 
 	// Add examples to help
 	program.addHelpText(
@@ -73,6 +75,9 @@ Examples:
   $ opencoder --status -p ./myproject
     Display metrics for a specific project
 
+  $ opencoder --metrics-reset
+    Reset metrics to default values (with confirmation)
+
 Options:
     -p, --project <dir>         Project directory (default: current directory)
     -m, --model <model>         Model for both plan and build
@@ -83,6 +88,7 @@ Options:
     --no-auto-push              Disable automatic push after cycles
     -s, --signoff               Add Signed-off-by line to commits
     --status                    Display metrics summary and exit
+    --metrics-reset             Reset metrics to default values (requires confirmation)
 
 Environment variables:
     OPENCODER_PLAN_MODEL        Default plan model
@@ -106,6 +112,26 @@ Config file (.opencode/opencoder/config.json):
 	)
 
 	return program
+}
+
+/**
+ * Prompt user for confirmation
+ * @param message - The confirmation message to display
+ * @returns Promise that resolves to true if user confirms, false otherwise
+ */
+async function promptConfirmation(message: string): Promise<boolean> {
+	const rl = createInterface({
+		input: process.stdin,
+		output: process.stdout,
+	})
+
+	return new Promise((resolve) => {
+		rl.question(`${message} (yes/no): `, (answer) => {
+			rl.close()
+			const normalized = answer.trim().toLowerCase()
+			resolve(normalized === "yes" || normalized === "y")
+		})
+	})
 }
 
 /**
@@ -145,6 +171,7 @@ export function parseCli(argv: string[] = process.argv): ParsedCli {
 			autoPush: opts.autoPush as boolean | undefined,
 			commitSignoff: opts.signoff as boolean | undefined,
 			status: opts.status as boolean | undefined,
+			metricsReset: opts.metricsReset as boolean | undefined,
 		},
 		hint: args[0],
 	}
@@ -182,6 +209,7 @@ export async function run(): Promise<void> {
 				autoPush: opts.autoPush as boolean | undefined,
 				commitSignoff: opts.signoff as boolean | undefined,
 				status: opts.status as boolean | undefined,
+				metricsReset: opts.metricsReset as boolean | undefined,
 			}
 
 			// Handle --status flag: display metrics and exit
@@ -195,6 +223,34 @@ export async function run(): Promise<void> {
 				console.log(formatMetricsSummary(metrics))
 				console.log(`\nLast activity: ${metrics.lastActivityTime}`)
 				console.log("")
+				return
+			}
+
+			// Handle --metrics-reset flag: reset metrics with confirmation
+			if (cliOptions.metricsReset) {
+				const projectDir = cliOptions.project ? resolve(cliOptions.project) : process.cwd()
+				const paths = initializePaths(projectDir)
+
+				// Show current metrics before reset
+				const currentMetrics = await loadMetrics(paths.metricsFile)
+				console.log("\nCurrent Metrics:")
+				console.log("================\n")
+				console.log(formatMetricsSummary(currentMetrics))
+				console.log("")
+
+				// Ask for confirmation
+				const confirmed = await promptConfirmation(
+					"Are you sure you want to reset all metrics to default values?",
+				)
+
+				if (confirmed) {
+					const freshMetrics = resetMetrics()
+					await saveMetrics(paths.metricsFile, freshMetrics)
+					console.log("\n✓ Metrics have been reset to default values.\n")
+				} else {
+					console.log("\nMetrics reset cancelled.\n")
+				}
+
 				return
 			}
 
