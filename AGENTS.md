@@ -85,7 +85,7 @@ src/
   logger.ts       # Logging with live output streaming
   plan.ts         # Plan parsing, validation, prompt generation
   ideas.ts        # Ideas queue management, selection logic
-  builder.ts      # OpenCode SDK wrapper with event streaming
+  build.ts        # OpenCode SDK wrapper with event streaming
   eval.ts         # Eval response parsing
   loop.ts         # Main autonomous loop
   git.ts          # Git operations (commit, push, change detection)
@@ -357,7 +357,7 @@ OpenCoder includes an **ideas queue system** that allows users to provide specif
 
 - **`ideas.ts`**: Core module with `Idea` interface, `loadAllIdeas()`, `formatIdeasForSelection()`
 - **`plan.ts`**: Contains `generateIdeaSelectionPrompt()` and `generateIdeaPlanPrompt()`
-- **`builder.ts`**: Has `runIdeaSelection()` and `runIdeaPlan()` methods
+- **`build.ts`**: Has `runIdeaSelection()` and `runIdeaPlan()` methods
 - **`loop.ts`**: Integrates ideas check before plan phase
 
 ### Selection Criteria
