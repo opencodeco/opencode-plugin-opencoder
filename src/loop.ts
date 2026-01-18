@@ -18,7 +18,13 @@ import {
 	readFileOrNull,
 	writeFile,
 } from "./fs.ts"
-import { commitChanges, generateCommitMessage, hasChanges, pushChanges } from "./git.ts"
+import {
+	commitChanges,
+	generateCommitMessage,
+	hasChanges,
+	hasUnpushedCommits,
+	pushChanges,
+} from "./git.ts"
 import {
 	archiveIdea,
 	formatIdeasForSelection,
@@ -562,7 +568,7 @@ async function runEvalPhase(
 		await archivePlan(paths, state.cycle, logger)
 
 		// Auto-push commits if enabled
-		if (config.autoPush && hasChanges(config.projectDir)) {
+		if (config.autoPush && hasUnpushedCommits(config.projectDir)) {
 			pushChanges(config.projectDir, logger)
 		}
 

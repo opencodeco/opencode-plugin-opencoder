@@ -66,23 +66,35 @@ export interface EventLogger {
 }
 
 /**
- * Model pricing per million tokens (approximate, as of 2024)
+ * Model pricing per million tokens (approximate, as of 2024-2025)
  * Format: { input: $/1M tokens, output: $/1M tokens }
  */
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-	// Claude models
+	// Claude models (Anthropic)
 	"claude-opus-4": { input: 15.0, output: 75.0 },
 	"claude-sonnet-4": { input: 3.0, output: 15.0 },
+	"claude-sonnet-4.5": { input: 3.0, output: 15.0 },
+	"claude-haiku-4": { input: 0.25, output: 1.25 },
+	"claude-haiku-4.5": { input: 0.8, output: 4.0 },
 	"claude-3-5-sonnet": { input: 3.0, output: 15.0 },
 	"claude-3-opus": { input: 15.0, output: 75.0 },
 	"claude-3-sonnet": { input: 3.0, output: 15.0 },
 	"claude-3-haiku": { input: 0.25, output: 1.25 },
-	// GPT models
+	// GPT models (OpenAI)
 	"gpt-4o": { input: 2.5, output: 10.0 },
 	"gpt-4o-mini": { input: 0.15, output: 0.6 },
 	"gpt-4-turbo": { input: 10.0, output: 30.0 },
 	"gpt-4": { input: 30.0, output: 60.0 },
 	"gpt-3.5-turbo": { input: 0.5, output: 1.5 },
+	o1: { input: 15.0, output: 60.0 },
+	"o1-mini": { input: 3.0, output: 12.0 },
+	"o1-preview": { input: 15.0, output: 60.0 },
+	"o3-mini": { input: 1.1, output: 4.4 },
+	// Gemini models (Google)
+	"gemini-2.0-flash": { input: 0.1, output: 0.4 },
+	"gemini-2.0-flash-thinking": { input: 0.1, output: 0.4 },
+	"gemini-1.5-pro": { input: 1.25, output: 5.0 },
+	"gemini-1.5-flash": { input: 0.075, output: 0.3 },
 	// Default fallback for unknown models
 	default: { input: 3.0, output: 15.0 },
 }
@@ -320,6 +332,7 @@ export class Builder {
 	private logger: Logger
 	private eventStreamAbort?: AbortController
 	private currentStats: SessionStats = createSessionStats()
+	private currentModel: string = "" // Track the model being used for cost calculation
 
 	constructor(config: Config, logger: Logger) {
 		this.config = config
@@ -362,9 +375,10 @@ export class Builder {
 			this.currentStats.filesModified.push(update.fileModified)
 		}
 
-		// Update cost estimate
+		// Update cost estimate using the current model being used
+		const modelToUse = this.currentModel || this.config.buildModel
 		this.currentStats.costUsd = estimateCost(
-			this.config.buildModel,
+			modelToUse,
 			this.currentStats.inputTokens,
 			this.currentStats.outputTokens,
 		)
@@ -551,6 +565,9 @@ export class Builder {
 		phase: string,
 	): Promise<string> {
 		const { providerID, modelID } = parseModel(model)
+
+		// Track the model being used for cost estimation
+		this.currentModel = model
 
 		this.logger.logVerbose(`${phase} with ${model}...`)
 		this.logger.startSpinner(`${phase}...`)

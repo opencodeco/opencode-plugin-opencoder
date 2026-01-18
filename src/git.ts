@@ -18,6 +18,42 @@ export function hasChanges(projectDir: string): boolean {
 	}
 }
 
+/**
+ * Check if there are unpushed commits on the current branch.
+ * Returns true if there are commits that haven't been pushed to the remote.
+ */
+export function hasUnpushedCommits(projectDir: string): boolean {
+	try {
+		// Get the current branch
+		const branch = execSync("git rev-parse --abbrev-ref HEAD", {
+			cwd: projectDir,
+			encoding: "utf-8",
+		}).trim()
+
+		// Check if there's a tracking branch
+		try {
+			execSync(`git rev-parse --abbrev-ref ${branch}@{upstream}`, {
+				cwd: projectDir,
+				encoding: "utf-8",
+				stdio: ["pipe", "pipe", "pipe"],
+			})
+		} catch {
+			// No upstream branch, can't determine if unpushed
+			return false
+		}
+
+		// Count commits ahead of upstream
+		const output = execSync(`git rev-list --count ${branch}@{upstream}..HEAD`, {
+			cwd: projectDir,
+			encoding: "utf-8",
+		})
+		const count = Number.parseInt(output.trim(), 10)
+		return count > 0
+	} catch {
+		return false
+	}
+}
+
 export function generateCommitMessage(taskDescription: string): string {
 	const lowerDesc = taskDescription.toLowerCase()
 
