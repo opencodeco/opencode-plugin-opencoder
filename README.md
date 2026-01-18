@@ -459,6 +459,17 @@ bunx biome check src/        # Check formatting/linting
 
 OpenCoder maintains high test coverage with 443+ unit tests across all modules. Coverage reports are generated automatically in CI and uploaded to [Codecov](https://codecov.io/gh/opencodeco/opencoder) for tracking.
 
+## Contributing
+
+We welcome contributions from the community! Whether you're fixing bugs, adding features, improving documentation, or suggesting improvements, your help is appreciated.
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on:
+- Getting started with development
+- Code style and conventions
+- Testing requirements
+- Git workflow and commit messages
+- Creating pull requests
+
 ## License
 
 MIT License - See [LICENSE](LICENSE) file.
@@ -472,4 +483,5 @@ MIT License - See [LICENSE](LICENSE) file.
 - [OpenCode](https://opencode.ai)
 - [OpenCode SDK](https://www.npmjs.com/package/@opencode-ai/sdk)
 - [Changelog](CHANGELOG.md) - Version history and release notes
+- [Contributing Guide](CONTRIBUTING.md) - How to contribute to the project
 - [Report Issues](https://github.com/opencodeco/opencoder/issues)
