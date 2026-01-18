@@ -3,11 +3,11 @@
  */
 
 /** Phases in the autonomous loop */
-export type Phase = "init" | "plan" | "build" | "evaluation"
+export type Phase = "init" | "plan" | "build" | "eval"
 
 /** Application configuration */
 export interface Config {
-	/** Model for plan and evaluation phases (provider/model format) */
+	/** Model for plan and eval phases (provider/model format) */
 	planModel: string
 	/** Model for build phase (provider/model format) */
 	buildModel: string
@@ -146,8 +146,8 @@ export interface BuildResult {
 	error?: string
 }
 
-/** Result of plan evaluation */
-export type EvaluationResult = "COMPLETE" | "NEEDS_WORK"
+/** Result of plan eval */
+export type EvalResult = "COMPLETE" | "NEEDS_WORK"
 
 /** Parsed model specification */
 export interface ModelSpec {
