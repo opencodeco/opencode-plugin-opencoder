@@ -10,7 +10,12 @@
 import { existsSync, readdirSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
 
-import { AGENTS_TARGET_DIR, getAgentsSourceDir, getPackageRoot } from "./src/paths.mjs"
+import {
+	AGENTS_TARGET_DIR,
+	getAgentsSourceDir,
+	getErrorMessage,
+	getPackageRoot,
+} from "./src/paths.mjs"
 
 const packageRoot = getPackageRoot(import.meta.url)
 const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
@@ -66,7 +71,8 @@ function main() {
 				console.log(`  Removed: ${file}`)
 				removedCount++
 			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err)
+				const error = err instanceof Error ? err : new Error(String(err))
+				const message = getErrorMessage(error, file, targetPath)
 				console.error(`  Warning: Could not remove ${file}: ${message}`)
 			}
 		}

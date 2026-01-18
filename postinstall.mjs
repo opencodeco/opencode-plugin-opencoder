@@ -8,54 +8,17 @@
  */
 
 import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { join } from "node:path"
 
-import { AGENTS_TARGET_DIR, getAgentsSourceDir, getPackageRoot } from "./src/paths.mjs"
+import {
+	AGENTS_TARGET_DIR,
+	getAgentsSourceDir,
+	getErrorMessage,
+	getPackageRoot,
+} from "./src/paths.mjs"
 
 const packageRoot = getPackageRoot(import.meta.url)
 const AGENTS_SOURCE_DIR = getAgentsSourceDir(packageRoot)
-
-/**
- * Returns a user-friendly error message based on the error code.
- *
- * Translates Node.js filesystem error codes into human-readable messages
- * that help users understand and resolve installation issues.
- *
- * @param {Error & {code?: string}} error - The error object from a failed fs operation
- * @param {string} file - The filename being copied
- * @param {string} targetPath - The target path for the file
- * @returns {string} A helpful error message describing the issue and potential solution
- *
- * @example
- * // Permission denied error
- * const err = Object.assign(new Error(), { code: 'EACCES' })
- * getErrorMessage(err, 'agent.md', '/home/user/.config/opencode/agents/agent.md')
- * // Returns: "Permission denied. Check write permissions for /home/user/.config/opencode/agents"
- *
- * @example
- * // File not found error
- * const err = Object.assign(new Error(), { code: 'ENOENT' })
- * getErrorMessage(err, 'missing.md', '/target/missing.md')
- * // Returns: "Source file not found: missing.md"
- */
-function getErrorMessage(error, file, targetPath) {
-	const code = error.code
-	switch (code) {
-		case "EACCES":
-			return `Permission denied. Check write permissions for ${dirname(targetPath)}`
-		case "ENOSPC":
-			return "Disk full. Free up space and try again"
-		case "ENOENT":
-			return `Source file not found: ${file}`
-		case "EROFS":
-			return "Read-only file system. Cannot write to target directory"
-		case "EMFILE":
-		case "ENFILE":
-			return "Too many open files. Close some applications and try again"
-		default:
-			return error.message || "Unknown error"
-	}
-}
 
 /**
  * Main entry point for the postinstall script.
