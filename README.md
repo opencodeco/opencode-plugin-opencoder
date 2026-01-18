@@ -168,6 +168,44 @@ Log output format:
 }
 ```
 
+## Troubleshooting
+
+If you encounter errors during installation, here are common error codes and their solutions:
+
+| Error Code | Message | Solution |
+|------------|---------|----------|
+| `EACCES` | Permission denied | Check write permissions for `~/.config/opencode/agents/`. Run `chmod -R u+w ~/.config/opencode/` or use `sudo` if needed. |
+| `EPERM` | Operation not permitted | The file may be locked or in use. Close any editors or applications using the agent files and try again. |
+| `ENOSPC` | Disk full | Free up disk space and retry the installation. |
+| `EROFS` | Read-only file system | The target directory is on a read-only filesystem. Remount with write permissions or choose a different config location. |
+| `EAGAIN` | Resource temporarily unavailable | A transient error. The installer retries automatically, but if it persists, wait a moment and try again. |
+| `EBUSY` | File is busy or locked | Another process is using the file. Close any applications that might have the agent files open. |
+| `ENOENT` | Source file not found | The agent source files are missing from the package. Try reinstalling with `bun add opencode-plugin-opencoder`. |
+| `EEXIST` | Target already exists | An agent file already exists. The installer should handle this, but you can manually remove files in `~/.config/opencode/agents/` if needed. |
+| `EMFILE` / `ENFILE` | Too many open files | System file descriptor limit reached. Close some applications or increase your system's `ulimit`. |
+| `EISDIR` | Expected file but found directory | A directory exists where an agent file should be. Remove the conflicting directory from `~/.config/opencode/agents/`. |
+
+### Manual Recovery
+
+If automatic installation fails, you can manually copy the agents:
+
+```bash
+# Create the agents directory
+mkdir -p ~/.config/opencode/agents
+
+# Copy agents from the installed package
+cp node_modules/opencode-plugin-opencoder/agents/*.md ~/.config/opencode/agents/
+```
+
+### Verifying Installation
+
+Check that agents were installed correctly:
+
+```bash
+ls -la ~/.config/opencode/agents/
+# Should show: opencoder.md, opencoder-planner.md, opencoder-builder.md
+```
+
 ## Development
 
 ```bash
