@@ -10,8 +10,7 @@ import { initializePaths } from "./fs.ts"
 import { runLoop } from "./loop.ts"
 import { formatMetricsSummary, loadMetrics, resetMetrics, saveMetrics } from "./metrics.ts"
 import type { CliOptions } from "./types.ts"
-
-const VERSION = "1.0.0"
+import { formatVersionInfo, getVersionInfo } from "./version.ts"
 
 /**
  * Result of CLI argument parsing.
@@ -33,7 +32,7 @@ function createProgram(): Command {
 	program
 		.name("opencoder")
 		.description("Autonomous development loop powered by OpenCode")
-		.version(VERSION)
+		.option("-V, --version", "Display version information and exit")
 		.argument("[hint]", "Optional hint/instruction for the AI")
 		.option("-p, --project <dir>", "Project directory (default: current directory)")
 		.option("-m, --model <model>", "Model for both plan and build (provider/model format)")
@@ -69,6 +68,9 @@ Examples:
   $ opencoder -m anthropic/claude-sonnet-4 -s
     Run with commit signoff enabled
 
+  $ opencoder --version
+    Display version information
+
   $ opencoder --status
     Display metrics summary without starting the loop
 
@@ -84,6 +86,7 @@ Options:
     -P, --plan-model            Model for plan phase
     -B, --build-model           Model for build phase
     -v, --verbose               Enable verbose logging
+    -V, --version               Display version information
     --no-auto-commit            Disable automatic commits after tasks
     --no-auto-push              Disable automatic push after cycles
     -s, --signoff               Add Signed-off-by line to commits
@@ -210,6 +213,15 @@ export async function run(): Promise<void> {
 				commitSignoff: opts.signoff as boolean | undefined,
 				status: opts.status as boolean | undefined,
 				metricsReset: opts.metricsReset as boolean | undefined,
+			}
+
+			// Handle --version flag: display version info and exit
+			if (opts.version) {
+				const versionInfo = getVersionInfo()
+				console.log("")
+				console.log(formatVersionInfo(versionInfo))
+				console.log("")
+				return
 			}
 
 			// Handle --status flag: display metrics and exit

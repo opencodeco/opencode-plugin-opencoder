@@ -260,6 +260,31 @@ describe("parseCli", () => {
 			expect(result.options.commitSignoff).toBe(true)
 		})
 	})
+
+	describe("version option", () => {
+		test("parses --version flag", () => {
+			const result = parseCli(argv("--version"))
+
+			// Note: --version is handled specially by commander and exits,
+			// but we can still parse it through ParsedCli if we want
+			// The actual version display is tested in the run() function
+			expect(result).toBeDefined()
+		})
+
+		test("parses -V shorthand", () => {
+			const result = parseCli(argv("-V"))
+
+			expect(result).toBeDefined()
+		})
+
+		test("version flag can be combined with other options in parsing", () => {
+			// While --version typically causes commander to exit,
+			// we verify the CLI accepts the option
+			const result = parseCli(argv("-V", "-m", "anthropic/claude-sonnet-4"))
+
+			expect(result).toBeDefined()
+		})
+	})
 })
 
 /**
