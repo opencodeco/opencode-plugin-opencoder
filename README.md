@@ -427,6 +427,7 @@ Costs are estimated during operation and recorded in metrics. Use the `--status`
 - **Let it run** - OpenCoder is designed to run continuously; trust the loop
 - **Check the logs** - Detailed logs are in `.opencode/opencoder/logs/` if something goes wrong
 - **Review history** - Completed plans are archived in `.opencode/opencoder/history/`
+- **See examples** - Check [examples/](examples/) directory for configuration guides and use cases
 
 ## Development
 
@@ -482,6 +483,7 @@ MIT License - See [LICENSE](LICENSE) file.
 
 - [OpenCode](https://opencode.ai)
 - [OpenCode SDK](https://www.npmjs.com/package/@opencode-ai/sdk)
+- [Examples](examples/) - Configuration guides and use case examples
 - [Changelog](CHANGELOG.md) - Version history and release notes
 - [Contributing Guide](CONTRIBUTING.md) - How to contribute to the project
 - [Report Issues](https://github.com/opencodeco/opencoder/issues)
