@@ -16,26 +16,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v2
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 0.15.2
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
 
       - name: Build
-        run: zig build
+        run: bun run build
 
       - name: Run tests
-        run: zig build test
+        run: bun test
 
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v2
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 0.15.2
+          bun-version: latest
 
-      - name: Check formatting
-        run: zig fmt --check src/
+      - name: Install dependencies
+        run: bun install
+
+      - name: Check formatting and lint
+        run: bunx biome check src/
