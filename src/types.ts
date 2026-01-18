@@ -1,5 +1,5 @@
 /**
- * Core type definitions for Opencoder
+ * Core type definitions for OpenCoder
  */
 
 /** Phases in the autonomous loop */
@@ -25,6 +25,12 @@ export interface Config {
 	logRetention: number
 	/** Seconds to pause between tasks */
 	taskPauseSeconds: number
+	/** Automatically commit changes after each task */
+	autoCommit: boolean
+	/** Automatically push commits after each cycle */
+	autoPush: boolean
+	/** Add signoff flag (-s) to commits */
+	commitSignoff: boolean
 }
 
 /** Persisted state */
@@ -39,6 +45,10 @@ export interface State {
 	sessionId?: string
 	/** ISO timestamp of last state update */
 	lastUpdate: string
+	/** Path to the idea file currently being processed (if any) */
+	currentIdeaPath?: string
+	/** Filename of the idea currently being processed (for display) */
+	currentIdeaFilename?: string
 }
 
 /** Runtime state with additional non-persisted fields */
@@ -118,6 +128,9 @@ export interface ConfigFile {
 	backoffBase?: number
 	logRetention?: number
 	taskPauseSeconds?: number
+	autoCommit?: boolean
+	autoPush?: boolean
+	commitSignoff?: boolean
 }
 
 /** CLI options from argument parsing */
@@ -127,4 +140,7 @@ export interface CliOptions {
 	planModel?: string
 	buildModel?: string
 	verbose?: boolean
+	autoCommit?: boolean
+	autoPush?: boolean
+	commitSignoff?: boolean
 }

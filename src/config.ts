@@ -20,6 +20,9 @@ const DEFAULTS: Omit<Config, "planModel" | "buildModel" | "projectDir"> = {
 	backoffBase: 10,
 	logRetention: 30,
 	taskPauseSeconds: 2,
+	autoCommit: true,
+	autoPush: true,
+	commitSignoff: false,
 }
 
 /** Environment variable prefix */
@@ -43,6 +46,9 @@ export async function loadConfig(cliOptions: CliOptions, hint?: string): Promise
 		planModel: cliOptions.planModel || cliOptions.model,
 		buildModel: cliOptions.buildModel || cliOptions.model,
 		verbose: cliOptions.verbose,
+		autoCommit: cliOptions.autoCommit,
+		autoPush: cliOptions.autoPush,
+		commitSignoff: cliOptions.commitSignoff,
 	}
 
 	// Merge all sources (later sources override earlier ones)
@@ -93,7 +99,8 @@ async function loadConfigFile(projectDir: string): Promise<Partial<Config>> {
 		const content = await readFile(configPath, "utf-8")
 		const parsed = JSON.parse(content) as ConfigFile
 
-		return {
+		// Only include defined values to avoid overriding defaults with undefined
+		return filterUndefined({
 			planModel: parsed.planModel,
 			buildModel: parsed.buildModel,
 			verbose: parsed.verbose,
@@ -101,7 +108,10 @@ async function loadConfigFile(projectDir: string): Promise<Partial<Config>> {
 			backoffBase: parsed.backoffBase,
 			logRetention: parsed.logRetention,
 			taskPauseSeconds: parsed.taskPauseSeconds,
-		}
+			autoCommit: parsed.autoCommit,
+			autoPush: parsed.autoPush,
+			commitSignoff: parsed.commitSignoff,
+		})
 	} catch (err) {
 		console.warn(`Warning: Failed to parse config.json: ${err}`)
 		return {}
@@ -146,6 +156,15 @@ function loadEnvConfig(): Partial<Config> {
 		const parsed = Number.parseInt(taskPause, 10)
 		if (!Number.isNaN(parsed)) config.taskPauseSeconds = parsed
 	}
+
+	const autoCommit = process.env[`${ENV_PREFIX}AUTO_COMMIT`]
+	if (autoCommit) config.autoCommit = autoCommit === "true" || autoCommit === "1"
+
+	const autoPush = process.env[`${ENV_PREFIX}AUTO_PUSH`]
+	if (autoPush) config.autoPush = autoPush === "true" || autoPush === "1"
+
+	const commitSignoff = process.env[`${ENV_PREFIX}COMMIT_SIGNOFF`]
+	if (commitSignoff) config.commitSignoff = commitSignoff === "true" || commitSignoff === "1"
 
 	return config
 }
