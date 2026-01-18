@@ -186,6 +186,7 @@ pub fn generatePlanningPrompt(cycle: u32, user_hint: ?[]const u8, allocator: All
         \\- NEVER provide options or ask "would you like me to..."
         \\- If main features are implemented, focus on: code quality, tests, documentation, refactoring, performance, security, error handling, edge cases, optimization, CI/CD, deployment, monitoring
         \\- There is ALWAYS something to improve in any project
+        \\- CRITICAL: The FINAL task in your plan MUST be "Run project linting and tests to ensure everything passes"
         \\
     );
 
@@ -218,8 +219,8 @@ pub fn generatePlanningPrompt(cycle: u32, user_hint: ?[]const u8, allocator: All
         \\- [ ] Task 2: Specific, actionable description
         \\- [ ] Task 3: Specific, actionable description
         \\- [ ] Task 4: Specific, actionable description
-        \\- [ ] Task 5: Specific, actionable description
-        \\[Add more tasks as needed, minimum 5]
+        \\- [ ] Run project linting and tests to ensure everything passes
+        \\[Add more tasks as needed, minimum 5, last task must be linting/testing]
         \\
         \\## Notes
         \\[Any additional context or dependencies]
@@ -365,6 +366,7 @@ pub fn generateIdeaPlanningPrompt(cycle: u32, idea_content: []const u8, idea_fil
         \\- NEVER ask questions or wait for user input
         \\- Focus entirely on implementing the idea described below
         \\- Break down the idea into concrete, actionable steps
+        \\- CRITICAL: The FINAL task in your plan MUST be "Run project linting and tests to ensure everything passes"
         \\
         \\IDEA TO IMPLEMENT (from 
     );
@@ -393,8 +395,8 @@ pub fn generateIdeaPlanningPrompt(cycle: u32, idea_content: []const u8, idea_fil
         \\## Tasks
         \\- [ ] Task 1: Specific, actionable description
         \\- [ ] Task 2: Specific, actionable description
-        \\- [ ] Task 3: Specific, actionable description
-        \\[Add more tasks as needed]
+        \\- [ ] Run project linting and tests to ensure everything passes
+        \\[Add more tasks as needed, last task must be linting/testing]
         \\
         \\## Notes
         \\[Any additional context or dependencies]
