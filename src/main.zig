@@ -158,4 +158,5 @@ test {
     _ = @import("executor.zig");
     _ = @import("evaluator.zig");
     _ = @import("loop.zig");
+    _ = @import("validate.zig");
 }

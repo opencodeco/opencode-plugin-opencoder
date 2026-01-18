@@ -9,6 +9,7 @@ const fs = std.fs;
 const Allocator = std.mem.Allocator;
 
 const fsutil = @import("fs.zig");
+const validate = @import("validate.zig");
 
 /// An idea loaded from the ideas directory
 pub const Idea = struct {
@@ -89,12 +90,21 @@ pub fn loadAllIdeas(ideas_dir: []const u8, allocator: Allocator, max_size: usize
         errdefer allocator.free(full_path);
 
         // Try to read the file
-        const content = fsutil.readFile(full_path, allocator, max_size) catch {
+        const raw_content = fsutil.readFile(full_path, allocator, max_size) catch {
             // Skip unreadable files, but delete them
             allocator.free(full_path);
             removeIdea(ideas_dir, entry.name) catch {};
             continue;
         };
+
+        // Sanitize idea content
+        const content = validate.sanitizeStringInput(raw_content, 8192, allocator) catch {
+            allocator.free(raw_content);
+            allocator.free(full_path);
+            removeIdea(ideas_dir, entry.name) catch {};
+            continue;
+        };
+        allocator.free(raw_content);
 
         // Skip empty files, delete them
         const trimmed = std.mem.trim(u8, content, " \t\n\r");

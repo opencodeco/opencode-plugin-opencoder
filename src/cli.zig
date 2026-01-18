@@ -5,6 +5,7 @@
 
 const std = @import("std");
 const config = @import("config.zig");
+const validate = @import("validate.zig");
 const Allocator = std.mem.Allocator;
 
 /// CLI parsing errors
@@ -14,6 +15,8 @@ pub const ParseError = error{
     UnknownProvider,
     InvalidProjectDir,
     MissingOptionValue,
+    InvalidHint,
+    InvalidModelName,
 };
 
 /// Result of CLI parsing
@@ -55,9 +58,13 @@ fn parseArgs(allocator: Allocator, args: anytype) ParseError!ParseResult {
             planning_model = models.planning;
             execution_model = models.execution;
         } else if (std.mem.eql(u8, arg, "-P") or std.mem.eql(u8, arg, "--planning-model")) {
-            planning_model = args.next() orelse return ParseError.MissingOptionValue;
+            const model = args.next() orelse return ParseError.MissingOptionValue;
+            validate.validateModelName(model) catch return ParseError.InvalidModelName;
+            planning_model = model;
         } else if (std.mem.eql(u8, arg, "-E") or std.mem.eql(u8, arg, "--execution-model")) {
-            execution_model = args.next() orelse return ParseError.MissingOptionValue;
+            const model = args.next() orelse return ParseError.MissingOptionValue;
+            validate.validateModelName(model) catch return ParseError.InvalidModelName;
+            execution_model = model;
         } else if (std.mem.eql(u8, arg, "-p") or std.mem.eql(u8, arg, "--project")) {
             project_dir = args.next() orelse return ParseError.MissingOptionValue;
         } else if (std.mem.startsWith(u8, arg, "-")) {
@@ -78,6 +85,11 @@ fn parseArgs(allocator: Allocator, args: anytype) ParseError!ParseResult {
         std.posix.getenv("OPENCODER_PROJECT_DIR") orelse
         ".";
 
+    // Validate project directory path for security issues
+    if (validate.sanitizePathInput(final_project_dir).len == 0) {
+        return ParseError.InvalidProjectDir;
+    }
+
     // Validate project directory exists
     std.fs.cwd().access(final_project_dir, .{}) catch {
         return ParseError.InvalidProjectDir;
@@ -88,10 +100,17 @@ fn parseArgs(allocator: Allocator, args: anytype) ParseError!ParseResult {
         return ParseError.InvalidProjectDir;
     };
 
+    // Sanitize user hint if provided
+    if (user_hint) |hint| {
+        const sanitized = validate.sanitizeHintInput(hint, allocator) catch {
+            return ParseError.InvalidHint;
+        };
+        cfg.user_hint = sanitized;
+    }
+
     cfg.planning_model = planning_model.?;
     cfg.execution_model = execution_model.?;
     cfg.project_dir = abs_path;
-    cfg.user_hint = user_hint;
 
     return .{ .run = cfg };
 }
@@ -248,6 +267,29 @@ pub fn formatError(err: ParseError, file: std.fs.File) void {
         \\For detailed help, run: opencoder --help
         \\
         ,
+        ParseError.InvalidHint =>
+        \\Error: User hint is invalid or too long
+        \\
+        \\Hints should be:
+        \\  - Less than 2048 characters
+        \\  - Free of invalid control characters
+        \\
+        \\For detailed help, run: opencoder --help
+        \\
+        ,
+        ParseError.InvalidModelName =>
+        \\Error: Invalid model name format
+        \\
+        \\Model names should contain only:
+        \\  - Letters (a-z, A-Z)
+        \\  - Numbers (0-9)
+        \\  - Special chars: - _ . / : @
+        \\
+        \\Example: opencoder -P anthropic/claude-sonnet-4
+        \\
+        \\For detailed help, run: opencoder --help
+        \\
+        ,
     };
     _ = file.write(msg) catch {};
 }
@@ -379,7 +421,10 @@ test "parse with project directory long form" {
 test "parse with user hint" {
     const args = &[_][]const u8{ "--provider", "github", "build a todo app" };
     const result = try parseFromSlice(std.testing.allocator, args);
-    defer if (result == .run) std.testing.allocator.free(result.run.project_dir);
+    defer if (result == .run) {
+        std.testing.allocator.free(result.run.project_dir);
+        if (result.run.user_hint) |hint| std.testing.allocator.free(hint);
+    };
 
     try std.testing.expect(result == .run);
     try std.testing.expect(result.run.user_hint != null);
@@ -389,7 +434,10 @@ test "parse with user hint" {
 test "parse with all options combined" {
     const args = &[_][]const u8{ "--provider", "anthropic", "-v", "-p", ".", "create a REST API" };
     const result = try parseFromSlice(std.testing.allocator, args);
-    defer if (result == .run) std.testing.allocator.free(result.run.project_dir);
+    defer if (result == .run) {
+        std.testing.allocator.free(result.run.project_dir);
+        if (result.run.user_hint) |hint| std.testing.allocator.free(hint);
+    };
 
     try std.testing.expect(result == .run);
     try std.testing.expectEqual(true, result.run.verbose);
@@ -401,7 +449,10 @@ test "parse with all options combined" {
 test "parse with mixed explicit models and provider (explicit wins)" {
     const args = &[_][]const u8{ "--provider", "github", "-P", "custom/planning", "-E", "custom/execution" };
     const result = try parseFromSlice(std.testing.allocator, args);
-    defer if (result == .run) std.testing.allocator.free(result.run.project_dir);
+    defer if (result == .run) {
+        std.testing.allocator.free(result.run.project_dir);
+        if (result.run.user_hint) |hint| std.testing.allocator.free(hint);
+    };
 
     try std.testing.expect(result == .run);
     // Explicit models should override provider preset
@@ -412,7 +463,10 @@ test "parse with mixed explicit models and provider (explicit wins)" {
 test "parse with options in different order" {
     const args = &[_][]const u8{ "-v", "build something", "--provider", "github", "-p", "." };
     const result = try parseFromSlice(std.testing.allocator, args);
-    defer if (result == .run) std.testing.allocator.free(result.run.project_dir);
+    defer if (result == .run) {
+        std.testing.allocator.free(result.run.project_dir);
+        if (result.run.user_hint) |hint| std.testing.allocator.free(hint);
+    };
 
     try std.testing.expect(result == .run);
     try std.testing.expectEqual(true, result.run.verbose);
@@ -529,7 +583,10 @@ test "parse edge case: multiple verbose flags" {
 test "parse edge case: last user hint wins" {
     const args = &[_][]const u8{ "--provider", "github", "first hint", "second hint" };
     const result = try parseFromSlice(std.testing.allocator, args);
-    defer if (result == .run) std.testing.allocator.free(result.run.project_dir);
+    defer if (result == .run) {
+        std.testing.allocator.free(result.run.project_dir);
+        if (result.run.user_hint) |hint| std.testing.allocator.free(hint);
+    };
 
     try std.testing.expect(result == .run);
     // Only the last positional argument is used as hint
@@ -539,7 +596,10 @@ test "parse edge case: last user hint wins" {
 test "parse edge case: model names with special characters" {
     const args = &[_][]const u8{ "-P", "provider/model-v1.2.3", "-E", "provider/model_beta" };
     const result = try parseFromSlice(std.testing.allocator, args);
-    defer if (result == .run) std.testing.allocator.free(result.run.project_dir);
+    defer if (result == .run) {
+        std.testing.allocator.free(result.run.project_dir);
+        if (result.run.user_hint) |hint| std.testing.allocator.free(hint);
+    };
 
     try std.testing.expect(result == .run);
     try std.testing.expectEqualStrings("provider/model-v1.2.3", result.run.planning_model);
@@ -549,7 +609,10 @@ test "parse edge case: model names with special characters" {
 test "parse edge case: user hint with spaces preserved" {
     const args = &[_][]const u8{ "--provider", "github", "build a complex web application" };
     const result = try parseFromSlice(std.testing.allocator, args);
-    defer if (result == .run) std.testing.allocator.free(result.run.project_dir);
+    defer if (result == .run) {
+        std.testing.allocator.free(result.run.project_dir);
+        if (result.run.user_hint) |hint| std.testing.allocator.free(hint);
+    };
 
     try std.testing.expect(result == .run);
     try std.testing.expectEqualStrings("build a complex web application", result.run.user_hint.?);
@@ -558,7 +621,10 @@ test "parse edge case: user hint with spaces preserved" {
 test "parse edge case: no user hint results in null" {
     const args = &[_][]const u8{ "--provider", "github" };
     const result = try parseFromSlice(std.testing.allocator, args);
-    defer if (result == .run) std.testing.allocator.free(result.run.project_dir);
+    defer if (result == .run) {
+        std.testing.allocator.free(result.run.project_dir);
+        if (result.run.user_hint) |hint| std.testing.allocator.free(hint);
+    };
 
     try std.testing.expect(result == .run);
     try std.testing.expectEqual(@as(?[]const u8, null), result.run.user_hint);
