@@ -14,6 +14,7 @@ describe("OpenCoderPlugin", () => {
 			$: () => {},
 			directory: "/tmp",
 			worktree: "/tmp",
+			serverUrl: new URL("http://localhost:3000"),
 		}
 
 		const result = await OpenCoderPlugin(mockContext as Parameters<typeof OpenCoderPlugin>[0])
@@ -29,6 +30,7 @@ describe("OpenCoderPlugin", () => {
 			$: () => {},
 			directory: "/tmp",
 			worktree: "/tmp",
+			serverUrl: new URL("http://localhost:3000"),
 		}
 
 		const result = await OpenCoderPlugin(mockContext as Parameters<typeof OpenCoderPlugin>[0])
