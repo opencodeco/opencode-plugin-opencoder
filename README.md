@@ -464,12 +464,31 @@ OpenCoder maintains high test coverage with 443+ unit tests across all modules. 
 
 We welcome contributions from the community! Whether you're fixing bugs, adding features, improving documentation, or suggesting improvements, your help is appreciated.
 
-Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on:
-- Getting started with development
-- Code style and conventions
-- Testing requirements
-- Git workflow and commit messages
-- Creating pull requests
+**Community Resources:**
+
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Detailed guidelines for developers
+  - Getting started with development
+  - Code style and conventions
+  - Testing requirements
+  - Git workflow and commit messages
+  - Creating pull requests
+
+- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** - Our community standards
+  - Respectful and inclusive environment
+  - Expected behavior
+  - Reporting violations
+
+- **[GOVERNANCE.md](GOVERNANCE.md)** - How decisions are made
+  - Decision-making processes
+  - Project leadership
+  - Release management
+  - Community participation
+
+- **[SUPPORT.md](SUPPORT.md)** - Getting help
+  - Troubleshooting common issues
+  - Reporting bugs
+  - Asking questions
+  - Finding documentation
 
 ## License
 
@@ -483,7 +502,13 @@ MIT License - See [LICENSE](LICENSE) file.
 
 - [OpenCode](https://opencode.ai)
 - [OpenCode SDK](https://www.npmjs.com/package/@opencode-ai/sdk)
-- [Examples](examples/) - Configuration guides and use case examples
-- [Changelog](CHANGELOG.md) - Version history and release notes
-- [Contributing Guide](CONTRIBUTING.md) - How to contribute to the project
-- [Report Issues](https://github.com/opencodeco/opencoder/issues)
+- **Documentation**
+  - [Examples](examples/) - Configuration guides and use case examples
+  - [Coverage Guide](docs/COVERAGE.md) - Test coverage and quality assurance
+  - [Changelog](CHANGELOG.md) - Version history and release notes
+- **Community**
+  - [Contributing Guide](CONTRIBUTING.md) - How to contribute
+  - [Code of Conduct](CODE_OF_CONDUCT.md) - Community standards
+  - [Governance](GOVERNANCE.md) - Project decisions
+  - [Support](SUPPORT.md) - Getting help
+  - [Report Issues](https://github.com/opencodeco/opencoder/issues) - Bug reports and feature requests
