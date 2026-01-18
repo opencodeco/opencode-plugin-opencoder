@@ -64,6 +64,8 @@ export function getErrorMessage(error, file, targetPath) {
 	switch (code) {
 		case "EACCES":
 			return `Permission denied. Check write permissions for ${dirname(targetPath)}`
+		case "EPERM":
+			return "Operation not permitted. The file may be in use or locked"
 		case "ENOSPC":
 			return "Disk full. Free up space and try again"
 		case "ENOENT":

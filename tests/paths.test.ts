@@ -111,6 +111,12 @@ describe("paths.mjs exports", () => {
 			)
 		})
 
+		it("should return operation not permitted message for EPERM error", () => {
+			const error = Object.assign(new Error("EPERM"), { code: "EPERM" })
+			const result = getErrorMessage(error, testFile, testTargetPath)
+			expect(result).toBe("Operation not permitted. The file may be in use or locked")
+		})
+
 		it("should return disk full message for ENOSPC error", () => {
 			const error = Object.assign(new Error("ENOSPC"), { code: "ENOSPC" })
 			const result = getErrorMessage(error, testFile, testTargetPath)
