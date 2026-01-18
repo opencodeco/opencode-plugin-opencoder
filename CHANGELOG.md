@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Ideas Queue Management** - New CLI commands for managing the ideas queue
+  - `opencoder idea <description>` command to quickly add ideas to the queue
+  - `--ideas-list` flag to list all queued ideas without starting the loop
+  - Automatic timestamped filenames for easy organization
+  - Pre-filled markdown templates for quick editing
+- **Enhanced Conventional Commits** - Expanded commit message generation
+  - Support for `perf`, `chore`, `ci`, `build`, and `style` commit types
+  - Better pattern matching for refactor types (cleanup, reorganize, etc.)
+  - Improved categorization of "improve" keyword to refactor
+
+### Changed
+- **Documentation Improvements**
+  - Added git-related environment variables to README
+  - Updated config.json examples with all available options
+  - Added examples for idea command usage
+- **Package Metadata** - Enhanced package.json with:
+  - Repository, bugs, and homepage URLs
+  - Keywords for npm discoverability
+  - Author and license fields
+- **Gitignore Updates** - Added metrics.json to prevent tracking runtime statistics
+
 ## [1.0.0] - 2026-01-18
 
 ### Added
