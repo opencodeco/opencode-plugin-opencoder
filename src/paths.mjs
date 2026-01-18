@@ -16,6 +16,12 @@ export {
 	parseVersion,
 } from "./semver.mjs"
 
+/**
+ * List of expected agent names (without .md extension).
+ * This is the single source of truth for agent filenames.
+ */
+export const AGENT_NAMES = ["opencoder", "opencoder-planner", "opencoder-builder"]
+
 /** Minimum character count for valid agent files */
 export const MIN_CONTENT_LENGTH = 100
 

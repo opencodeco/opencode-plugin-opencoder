@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test"
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { agents } from "../src/metadata"
+import { AGENT_NAMES } from "../src/paths.mjs"
 
 describe("postinstall.mjs", () => {
 	const testDir = join(tmpdir(), `opencoder-test-${Date.now()}`)
@@ -55,6 +57,32 @@ describe("agent files existence", () => {
 	it("should have exactly 3 agent files", () => {
 		const files = readdirSync(agentsDir).filter((f) => f.endsWith(".md"))
 		expect(files).toHaveLength(3)
+	})
+})
+
+describe("agent metadata consistency", () => {
+	const agentsDir = join(import.meta.dir, "..", "agents")
+
+	it("should have AGENT_NAMES match agents export from metadata", () => {
+		expect(AGENT_NAMES).toEqual(agents)
+	})
+
+	it("should have agents export match actual files in agents/ directory", () => {
+		const actualFiles = readdirSync(agentsDir)
+			.filter((f) => f.endsWith(".md"))
+			.map((f) => f.replace(/\.md$/, ""))
+			.sort()
+		const expectedAgents = [...agents].sort()
+		expect(actualFiles).toEqual(expectedAgents)
+	})
+
+	it("should have AGENT_NAMES match actual files in agents/ directory", () => {
+		const actualFiles = readdirSync(agentsDir)
+			.filter((f) => f.endsWith(".md"))
+			.map((f) => f.replace(/\.md$/, ""))
+			.sort()
+		const expectedAgents = [...AGENT_NAMES].sort()
+		expect(actualFiles).toEqual(expectedAgents)
 	})
 })
 

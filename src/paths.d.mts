@@ -10,6 +10,12 @@ export {
 	parseVersion,
 } from "./semver.mjs"
 
+/**
+ * List of expected agent names (without .md extension).
+ * This is the single source of truth for agent filenames.
+ */
+export declare const AGENT_NAMES: string[]
+
 /** Minimum character count for valid agent files */
 export declare const MIN_CONTENT_LENGTH: number
 
