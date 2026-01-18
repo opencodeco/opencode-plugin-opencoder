@@ -181,7 +181,11 @@ Create a `.opencode/opencoder/config.json` in your project:
   "buildModel": "anthropic/claude-sonnet-4",
   "verbose": false,
   "maxRetries": 3,
-  "taskPauseSeconds": 2
+  "taskPauseSeconds": 2,
+  "autoCommit": true,
+  "autoPush": true,
+  "commitSignoff": false,
+  "cycleTimeoutMinutes": 60
 }
 ```
 
@@ -197,6 +201,10 @@ Create a `.opencode/opencoder/config.json` in your project:
 | `OPENCODER_BACKOFF_BASE` | `10` | Base seconds for exponential backoff |
 | `OPENCODER_LOG_RETENTION` | `30` | Days to keep old logs |
 | `OPENCODER_TASK_PAUSE_SECONDS` | `2` | Pause between tasks |
+| `OPENCODER_AUTO_COMMIT` | `true` | Auto-commit changes after tasks |
+| `OPENCODER_AUTO_PUSH` | `true` | Auto-push commits after cycles |
+| `OPENCODER_COMMIT_SIGNOFF` | `false` | Add Signed-off-by to commits (DCO) |
+| `OPENCODER_CYCLE_TIMEOUT_MINUTES` | `60` | Max minutes per cycle (0 = no limit) |
 
 ### Config Priority
 
