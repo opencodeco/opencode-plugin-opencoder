@@ -111,7 +111,10 @@ export function commitChanges(
 ): void {
 	try {
 		const signoffFlag = signoff ? " -s" : ""
-		execSync(`git add . && git commit${signoffFlag} -m "${message}"`, {
+		// Use single quotes to prevent shell expansion of special characters ($, `, \)
+		// and replace existing single quotes with '"'"' (end quote, escaped quote, start quote)
+		const escapedMessage = message.replace(/'/g, "'\"'\"'")
+		execSync(`git add . && git commit${signoffFlag} -m '${escapedMessage}'`, {
 			cwd: projectDir,
 			encoding: "utf-8",
 		})
