@@ -202,7 +202,7 @@ export async function retryOnTransientError(fn, options = {}) {
 			const isTransient = isTransientError(err)
 
 			// If not a transient error or last attempt, throw immediately
-			if (!isTransient || attempt === retries) {
+			if (!isTransient || attempt === sanitizedRetries) {
 				throw err
 			}
 

@@ -574,6 +574,49 @@ describe("paths.mjs exports", () => {
 				expect(callCount).toBe(1) // Only initial attempt
 			})
 
+			it("should use sanitizedRetries (not raw retries) in last-attempt check", async () => {
+				// This test verifies the bug fix where `attempt === retries` was used
+				// instead of `attempt === sanitizedRetries`. With retries: -1, the raw
+				// comparison would never be true (attempt is never -1), potentially
+				// causing issues. The sanitized value (0) should be used instead.
+				let callCount = 0
+				const start = Date.now()
+				await expect(
+					retryOnTransientError(
+						() => {
+							callCount++
+							const err = Object.assign(new Error("EBUSY"), { code: "EBUSY" })
+							throw err
+						},
+						{ retries: -1, initialDelayMs: 50 },
+					),
+				).rejects.toThrow("EBUSY")
+				const elapsed = Date.now() - start
+				// With sanitizedRetries = 0, only 1 attempt should occur (no retries)
+				// If the bug existed, it would loop indefinitely or behave incorrectly
+				expect(callCount).toBe(1)
+				// Should complete quickly since there are no retries (no delays)
+				expect(elapsed).toBeLessThan(100)
+			})
+
+			it("should use sanitizedRetries with NaN retries in last-attempt check", async () => {
+				// When retries is NaN, it should be sanitized to 3 (default)
+				// The last-attempt check should use sanitizedRetries (3), not NaN
+				let callCount = 0
+				await expect(
+					retryOnTransientError(
+						() => {
+							callCount++
+							const err = Object.assign(new Error("EBUSY"), { code: "EBUSY" })
+							throw err
+						},
+						{ retries: Number.NaN, initialDelayMs: 1 },
+					),
+				).rejects.toThrow("EBUSY")
+				// With sanitizedRetries = 3 (default), expect 4 attempts total
+				expect(callCount).toBe(4)
+			})
+
 			it("should handle initialDelayMs: 0 (no delay)", async () => {
 				let callCount = 0
 				const start = Date.now()
