@@ -1128,6 +1128,58 @@ Adding more text to ensure minimum length requirement is satisfied here.`
 			// Should show validation passed for each file
 			expect(stdout).toContain("Validation passed")
 		})
+
+		it("should run actual postinstall.mjs with --help", async () => {
+			const proc = Bun.spawn(["node", "postinstall.mjs", "--help"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+			const stderr = await new Response(proc.stderr).text()
+
+			// Should exit with code 0
+			expect(exitCode).toBe(0)
+
+			// Should show usage information
+			expect(stdout).toContain("Usage:")
+			expect(stdout).toContain("postinstall.mjs")
+			expect(stdout).toContain("Options:")
+			expect(stdout).toContain("--dry-run")
+			expect(stdout).toContain("--verbose")
+			expect(stdout).toContain("--help")
+
+			// Should not have errors
+			expect(stderr).toBe("")
+		})
+
+		it("should run actual preuninstall.mjs with --help", async () => {
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--help"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+			const stderr = await new Response(proc.stderr).text()
+
+			// Should exit with code 0
+			expect(exitCode).toBe(0)
+
+			// Should show usage information
+			expect(stdout).toContain("Usage:")
+			expect(stdout).toContain("preuninstall.mjs")
+			expect(stdout).toContain("Options:")
+			expect(stdout).toContain("--dry-run")
+			expect(stdout).toContain("--verbose")
+			expect(stdout).toContain("--help")
+
+			// Should not have errors
+			expect(stderr).toBe("")
+		})
 	})
 
 	describe("full install/uninstall cycle", () => {

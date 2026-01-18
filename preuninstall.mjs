@@ -28,6 +28,24 @@ const flags = parseCliFlags(process.argv)
 const DRY_RUN = flags.dryRun
 const VERBOSE = flags.verbose
 
+/** Print usage information and exit */
+if (flags.help) {
+	console.log(`Usage: node preuninstall.mjs [options]
+
+Remove OpenCoder agents from ~/.config/opencode/agents/
+
+Options:
+  --dry-run   Simulate removal without deleting files
+  --verbose   Enable verbose output for debugging
+  --help      Show this help message and exit
+
+Examples:
+  node preuninstall.mjs              # Remove agents
+  node preuninstall.mjs --dry-run    # Preview what would be removed
+  node preuninstall.mjs --verbose    # Remove with detailed logging`)
+	process.exit(0)
+}
+
 /** Create logger with verbose flag */
 const logger = createLogger(VERBOSE)
 const verbose = logger.verbose

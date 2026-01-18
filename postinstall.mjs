@@ -29,6 +29,24 @@ const flags = parseCliFlags(process.argv)
 const DRY_RUN = flags.dryRun
 const VERBOSE = flags.verbose
 
+/** Print usage information and exit */
+if (flags.help) {
+	console.log(`Usage: node postinstall.mjs [options]
+
+Install OpenCoder agents to ~/.config/opencode/agents/
+
+Options:
+  --dry-run   Simulate installation without copying files
+  --verbose   Enable verbose output for debugging
+  --help      Show this help message and exit
+
+Examples:
+  node postinstall.mjs              # Install agents
+  node postinstall.mjs --dry-run    # Preview what would be installed
+  node postinstall.mjs --verbose    # Install with detailed logging`)
+	process.exit(0)
+}
+
 /** Create logger with verbose flag */
 const logger = createLogger(VERBOSE)
 const verbose = logger.verbose
