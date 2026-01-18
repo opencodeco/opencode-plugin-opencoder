@@ -7,7 +7,7 @@
  * This allows OpenCode to discover and use the agents.
  */
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs"
 import { join } from "node:path"
 
 import {
@@ -71,6 +71,17 @@ function main() {
 
 		try {
 			copyFileSync(sourcePath, targetPath)
+
+			// Verify the copy succeeded by comparing file sizes
+			const sourceSize = statSync(sourcePath).size
+			const targetSize = statSync(targetPath).size
+
+			if (sourceSize !== targetSize) {
+				throw new Error(
+					`File size mismatch: source=${sourceSize} bytes, target=${targetSize} bytes`,
+				)
+			}
+
 			successes.push(file)
 			console.log(`  Installed: ${file}`)
 		} catch (err) {
