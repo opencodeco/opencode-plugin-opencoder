@@ -2,10 +2,10 @@
  * Tests for state module
  */
 
-import { describe, expect, test, beforeEach, afterEach } from "bun:test"
-import { mkdirSync, rmSync, existsSync } from "node:fs"
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { existsSync, mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
-import { loadState, saveState, resetState, newCycleState } from "../src/state.ts"
+import { loadState, newCycleState, resetState, saveState } from "../src/state.ts"
 
 const TEST_DIR = "/tmp/opencoder-test-state"
 
@@ -70,6 +70,36 @@ describe("state", () => {
 			expect(state.cycle).toBe(10)
 			expect(state.phase).toBe("init") // default
 			expect(state.taskIndex).toBe(0) // default
+		})
+
+		test("handles invalid cycle value with default", async () => {
+			const stateFile = join(TEST_DIR, "invalid-cycle.json")
+			await Bun.write(stateFile, JSON.stringify({ cycle: -5, phase: "build" }))
+
+			const state = await loadState(stateFile)
+
+			expect(state.cycle).toBe(1) // default due to invalid negative value
+			expect(state.phase).toBe("build") // valid phase should be kept
+		})
+
+		test("handles invalid phase value with default", async () => {
+			const stateFile = join(TEST_DIR, "invalid-phase.json")
+			await Bun.write(stateFile, JSON.stringify({ cycle: 3, phase: "invalid_phase" }))
+
+			const state = await loadState(stateFile)
+
+			expect(state.cycle).toBe(3) // valid cycle should be kept
+			expect(state.phase).toBe("init") // default due to invalid phase
+		})
+
+		test("handles invalid taskIndex value with default", async () => {
+			const stateFile = join(TEST_DIR, "invalid-taskindex.json")
+			await Bun.write(stateFile, JSON.stringify({ cycle: 2, taskIndex: -1 }))
+
+			const state = await loadState(stateFile)
+
+			expect(state.cycle).toBe(2) // valid cycle should be kept
+			expect(state.taskIndex).toBe(0) // default due to invalid negative value
 		})
 	})
 
