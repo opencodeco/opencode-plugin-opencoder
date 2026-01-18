@@ -177,4 +177,80 @@ describe("parseCli", () => {
 			expect(result.hint).toBeUndefined()
 		})
 	})
+
+	describe("status option", () => {
+		test("parses --status flag", () => {
+			const result = parseCli(argv("--status"))
+
+			expect(result.options.status).toBe(true)
+		})
+
+		test("parses --status with project option", () => {
+			const result = parseCli(argv("--status", "-p", "./myproject"))
+
+			expect(result.options.status).toBe(true)
+			expect(result.options.project).toBe("./myproject")
+		})
+
+		test("status is undefined when not provided", () => {
+			const result = parseCli(argv("-m", "anthropic/claude-sonnet-4"))
+
+			expect(result.options.status).toBeUndefined()
+		})
+	})
+
+	describe("metrics-reset option", () => {
+		test("parses --metrics-reset flag", () => {
+			const result = parseCli(argv("--metrics-reset"))
+
+			expect(result.options.metricsReset).toBe(true)
+		})
+
+		test("parses --metrics-reset with project option", () => {
+			const result = parseCli(argv("--metrics-reset", "-p", "./myproject"))
+
+			expect(result.options.metricsReset).toBe(true)
+			expect(result.options.project).toBe("./myproject")
+		})
+
+		test("metricsReset is undefined when not provided", () => {
+			const result = parseCli(argv("-m", "anthropic/claude-sonnet-4"))
+
+			expect(result.options.metricsReset).toBeUndefined()
+		})
+	})
+
+	describe("git options", () => {
+		test("parses --no-auto-commit flag", () => {
+			const result = parseCli(argv("--no-auto-commit"))
+
+			expect(result.options.autoCommit).toBe(false)
+		})
+
+		test("parses --no-auto-push flag", () => {
+			const result = parseCli(argv("--no-auto-push"))
+
+			expect(result.options.autoPush).toBe(false)
+		})
+
+		test("parses -s/--signoff flag", () => {
+			const result = parseCli(argv("-s"))
+
+			expect(result.options.commitSignoff).toBe(true)
+		})
+
+		test("parses --signoff flag", () => {
+			const result = parseCli(argv("--signoff"))
+
+			expect(result.options.commitSignoff).toBe(true)
+		})
+
+		test("parses all git options together", () => {
+			const result = parseCli(argv("--no-auto-commit", "--no-auto-push", "-s"))
+
+			expect(result.options.autoCommit).toBe(false)
+			expect(result.options.autoPush).toBe(false)
+			expect(result.options.commitSignoff).toBe(true)
+		})
+	})
 })
