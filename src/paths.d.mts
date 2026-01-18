@@ -2,6 +2,15 @@
  * Type declarations for paths.mjs
  */
 
+/** Minimum character count for valid agent files */
+export declare const MIN_CONTENT_LENGTH: number
+
+/** Keywords that should appear in valid agent files (case-insensitive) */
+export declare const REQUIRED_KEYWORDS: string[]
+
+/** Required fields in YAML frontmatter */
+export declare const REQUIRED_FRONTMATTER_FIELDS: string[]
+
 /**
  * Get the package root directory from a module's import.meta.url
  */
@@ -25,3 +34,38 @@ export function getErrorMessage(
 	file: string,
 	targetPath: string,
 ): string
+
+/**
+ * Result of parsing YAML frontmatter from markdown content.
+ */
+export interface ParseFrontmatterResult {
+	found: boolean
+	fields: Record<string, string>
+	endIndex: number
+}
+
+/**
+ * Parses YAML frontmatter from markdown content.
+ *
+ * Expects frontmatter to be delimited by --- at the start of the file.
+ */
+export function parseFrontmatter(content: string): ParseFrontmatterResult
+
+/**
+ * Result of validating agent content.
+ */
+export interface ValidateAgentContentResult {
+	valid: boolean
+	error?: string
+}
+
+/**
+ * Validates that agent content has a valid structure.
+ *
+ * Checks that the content:
+ * 1. Has YAML frontmatter with required fields (version, requires)
+ * 2. Starts with a markdown header (# ) after frontmatter
+ * 3. Contains at least MIN_CONTENT_LENGTH characters
+ * 4. Contains at least one of the expected keywords
+ */
+export function validateAgentContent(content: string): ValidateAgentContentResult

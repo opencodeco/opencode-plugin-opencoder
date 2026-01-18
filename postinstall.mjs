@@ -15,6 +15,7 @@ import {
 	getAgentsSourceDir,
 	getErrorMessage,
 	getPackageRoot,
+	validateAgentContent,
 } from "./src/paths.mjs"
 
 const packageRoot = getPackageRoot(import.meta.url)
@@ -36,130 +37,15 @@ function verbose(message) {
 	}
 }
 
-/** Minimum character count for valid agent files */
-const MIN_CONTENT_LENGTH = 100
-
-/** Keywords that should appear in valid agent files (case-insensitive) */
-const REQUIRED_KEYWORDS = ["agent", "task"]
-
-/** Required fields in YAML frontmatter */
-const REQUIRED_FRONTMATTER_FIELDS = ["version", "requires"]
-
 /**
- * Parses YAML frontmatter from markdown content.
- *
- * Expects frontmatter to be delimited by --- at the start of the file.
- *
- * @param {string} content - The file content to parse
- * @returns {{ found: boolean, fields: Record<string, string>, endIndex: number }} Parse result
- */
-function parseFrontmatter(content) {
-	// Frontmatter must start at the beginning of the file
-	if (!content.startsWith("---")) {
-		return { found: false, fields: {}, endIndex: 0 }
-	}
-
-	// Find the closing ---
-	const endMatch = content.indexOf("\n---", 3)
-	if (endMatch === -1) {
-		return { found: false, fields: {}, endIndex: 0 }
-	}
-
-	// Extract frontmatter content (between the --- delimiters)
-	const frontmatterContent = content.slice(4, endMatch)
-	const fields = {}
-
-	// Parse simple key: value pairs
-	for (const line of frontmatterContent.split("\n")) {
-		const trimmed = line.trim()
-		if (!trimmed || trimmed.startsWith("#")) continue
-
-		const colonIndex = trimmed.indexOf(":")
-		if (colonIndex === -1) continue
-
-		const key = trimmed.slice(0, colonIndex).trim()
-		let value = trimmed.slice(colonIndex + 1).trim()
-
-		// Remove surrounding quotes if present
-		if (
-			(value.startsWith('"') && value.endsWith('"')) ||
-			(value.startsWith("'") && value.endsWith("'"))
-		) {
-			value = value.slice(1, -1)
-		}
-
-		fields[key] = value
-	}
-
-	// endIndex points to the character after the closing ---\n
-	const endIndex = endMatch + 4
-
-	return { found: true, fields, endIndex }
-}
-
-/**
- * Validates that an agent file has valid content structure.
- *
- * Checks that the file:
- * 1. Has YAML frontmatter with required fields (version, requires)
- * 2. Starts with a markdown header (# ) after frontmatter
- * 3. Contains at least MIN_CONTENT_LENGTH characters
- * 4. Contains at least one of the expected keywords
+ * Validates an agent file by reading and validating its content.
  *
  * @param {string} filePath - Path to the agent file to validate
  * @returns {{ valid: boolean, error?: string }} Validation result with optional error message
  */
-function validateAgentContent(filePath) {
+function validateAgentFile(filePath) {
 	const content = readFileSync(filePath, "utf-8")
-
-	// Check minimum length
-	if (content.length < MIN_CONTENT_LENGTH) {
-		return {
-			valid: false,
-			error: `File too short: ${content.length} characters (minimum ${MIN_CONTENT_LENGTH})`,
-		}
-	}
-
-	// Check for YAML frontmatter
-	const frontmatter = parseFrontmatter(content)
-	if (!frontmatter.found) {
-		return {
-			valid: false,
-			error: "File missing YAML frontmatter (must start with ---)",
-		}
-	}
-
-	// Check for required frontmatter fields
-	const missingFields = REQUIRED_FRONTMATTER_FIELDS.filter((field) => !frontmatter.fields[field])
-	if (missingFields.length > 0) {
-		return {
-			valid: false,
-			error: `Frontmatter missing required fields: ${missingFields.join(", ")}`,
-		}
-	}
-
-	// Get content after frontmatter
-	const contentAfterFrontmatter = content.slice(frontmatter.endIndex).trimStart()
-
-	// Check for markdown header after frontmatter
-	if (!contentAfterFrontmatter.startsWith("# ")) {
-		return {
-			valid: false,
-			error: "File does not have a markdown header (# ) after frontmatter",
-		}
-	}
-
-	// Check for required keywords (case-insensitive)
-	const lowerContent = content.toLowerCase()
-	const hasKeyword = REQUIRED_KEYWORDS.some((keyword) => lowerContent.includes(keyword))
-	if (!hasKeyword) {
-		return {
-			valid: false,
-			error: `File missing required keywords: ${REQUIRED_KEYWORDS.join(", ")}`,
-		}
-	}
-
-	return { valid: true }
+	return validateAgentContent(content)
 }
 
 /**
@@ -236,7 +122,7 @@ function main() {
 			if (DRY_RUN) {
 				// In dry-run mode, validate source file but don't copy
 				verbose(`  Validating source file (dry-run mode)...`)
-				const validation = validateAgentContent(sourcePath)
+				const validation = validateAgentFile(sourcePath)
 				if (!validation.valid) {
 					throw new Error(`Invalid agent file content: ${validation.error}`)
 				}
@@ -262,7 +148,7 @@ function main() {
 
 				// Validate content structure
 				verbose(`  Validating content structure...`)
-				const validation = validateAgentContent(targetPath)
+				const validation = validateAgentFile(targetPath)
 				if (!validation.valid) {
 					throw new Error(`Invalid agent file content: ${validation.error}`)
 				}

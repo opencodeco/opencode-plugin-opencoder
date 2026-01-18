@@ -6,6 +6,11 @@ import {
 	getAgentsSourceDir,
 	getErrorMessage,
 	getPackageRoot,
+	MIN_CONTENT_LENGTH,
+	parseFrontmatter,
+	REQUIRED_FRONTMATTER_FIELDS,
+	REQUIRED_KEYWORDS,
+	validateAgentContent,
 } from "../src/paths.mjs"
 
 describe("paths.mjs exports", () => {
@@ -182,6 +187,252 @@ describe("paths.mjs exports", () => {
 			const deepPath = "/very/deep/nested/path/file.md"
 			const result = getErrorMessage(error, "file.md", deepPath)
 			expect(result).toBe("Permission denied. Check write permissions for /very/deep/nested/path")
+		})
+	})
+
+	describe("constants", () => {
+		it("should export MIN_CONTENT_LENGTH as a number", () => {
+			expect(typeof MIN_CONTENT_LENGTH).toBe("number")
+			expect(MIN_CONTENT_LENGTH).toBe(100)
+		})
+
+		it("should export REQUIRED_KEYWORDS as an array", () => {
+			expect(Array.isArray(REQUIRED_KEYWORDS)).toBe(true)
+			expect(REQUIRED_KEYWORDS).toContain("agent")
+			expect(REQUIRED_KEYWORDS).toContain("task")
+		})
+
+		it("should export REQUIRED_FRONTMATTER_FIELDS as an array", () => {
+			expect(Array.isArray(REQUIRED_FRONTMATTER_FIELDS)).toBe(true)
+			expect(REQUIRED_FRONTMATTER_FIELDS).toContain("version")
+			expect(REQUIRED_FRONTMATTER_FIELDS).toContain("requires")
+		})
+	})
+
+	describe("parseFrontmatter", () => {
+		it("should return found: false when content does not start with ---", () => {
+			const result = parseFrontmatter("# No frontmatter")
+			expect(result.found).toBe(false)
+			expect(result.fields).toEqual({})
+			expect(result.endIndex).toBe(0)
+		})
+
+		it("should return found: false when closing --- is missing", () => {
+			const result = parseFrontmatter("---\nversion: 1.0\nno closing delimiter")
+			expect(result.found).toBe(false)
+			expect(result.fields).toEqual({})
+			expect(result.endIndex).toBe(0)
+		})
+
+		it("should parse simple key: value pairs", () => {
+			const content = `---
+version: 1.0
+requires: opencode
+---
+# Content`
+			const result = parseFrontmatter(content)
+			expect(result.found).toBe(true)
+			expect(result.fields.version).toBe("1.0")
+			expect(result.fields.requires).toBe("opencode")
+		})
+
+		it("should remove surrounding double quotes from values", () => {
+			const content = `---
+name: "My Agent"
+---
+# Content`
+			const result = parseFrontmatter(content)
+			expect(result.fields.name).toBe("My Agent")
+		})
+
+		it("should remove surrounding single quotes from values", () => {
+			const content = `---
+name: 'My Agent'
+---
+# Content`
+			const result = parseFrontmatter(content)
+			expect(result.fields.name).toBe("My Agent")
+		})
+
+		it("should skip comment lines in frontmatter", () => {
+			const content = `---
+# This is a comment
+version: 1.0
+---
+# Content`
+			const result = parseFrontmatter(content)
+			expect(result.found).toBe(true)
+			expect(result.fields.version).toBe("1.0")
+			expect(Object.keys(result.fields)).toHaveLength(1)
+		})
+
+		it("should skip empty lines in frontmatter", () => {
+			const content = `---
+version: 1.0
+
+requires: opencode
+---
+# Content`
+			const result = parseFrontmatter(content)
+			expect(result.found).toBe(true)
+			expect(result.fields.version).toBe("1.0")
+			expect(result.fields.requires).toBe("opencode")
+		})
+
+		it("should skip lines without colons", () => {
+			const content = `---
+version: 1.0
+invalid line without colon
+requires: opencode
+---
+# Content`
+			const result = parseFrontmatter(content)
+			expect(result.found).toBe(true)
+			expect(Object.keys(result.fields)).toHaveLength(2)
+		})
+
+		it("should return correct endIndex", () => {
+			const content = `---
+version: 1.0
+---
+# Content after frontmatter`
+			const result = parseFrontmatter(content)
+			expect(result.found).toBe(true)
+			// endIndex should point past the closing ---\n
+			const afterFrontmatter = content.slice(result.endIndex)
+			expect(afterFrontmatter).toBe("\n# Content after frontmatter")
+		})
+
+		it("should handle values with colons", () => {
+			const content = `---
+url: https://example.com
+---
+# Content`
+			const result = parseFrontmatter(content)
+			expect(result.fields.url).toBe("https://example.com")
+		})
+	})
+
+	describe("validateAgentContent", () => {
+		const createValidContent = (overrides: { content?: string } = {}) => {
+			const baseContent = `---
+version: 1.0
+requires: opencode
+---
+# Test Agent
+
+This is a test agent that handles various tasks for you.
+The agent can process multiple items efficiently.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+			return overrides.content ?? baseContent
+		}
+
+		it("should return valid: true for valid agent content", () => {
+			const content = createValidContent()
+			const result = validateAgentContent(content)
+			expect(result.valid).toBe(true)
+			expect(result.error).toBeUndefined()
+		})
+
+		it("should return valid: false when content is too short", () => {
+			const content = "---\nversion: 1.0\nrequires: opencode\n---\n# Short agent task"
+			const result = validateAgentContent(content)
+			expect(result.valid).toBe(false)
+			expect(result.error).toContain("File too short")
+			expect(result.error).toContain(`minimum ${MIN_CONTENT_LENGTH}`)
+		})
+
+		it("should return valid: false when frontmatter is missing", () => {
+			const content =
+				"# No Frontmatter Agent\n\nThis agent has no frontmatter but is an agent for tasks.".padEnd(
+					MIN_CONTENT_LENGTH + 10,
+					" ",
+				)
+			const result = validateAgentContent(content)
+			expect(result.valid).toBe(false)
+			expect(result.error).toContain("YAML frontmatter")
+		})
+
+		it("should return valid: false when version field is missing", () => {
+			const content = `---
+requires: opencode
+---
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+			const result = validateAgentContent(content)
+			expect(result.valid).toBe(false)
+			expect(result.error).toContain("missing required fields")
+			expect(result.error).toContain("version")
+		})
+
+		it("should return valid: false when requires field is missing", () => {
+			const content = `---
+version: 1.0
+---
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+			const result = validateAgentContent(content)
+			expect(result.valid).toBe(false)
+			expect(result.error).toContain("missing required fields")
+			expect(result.error).toContain("requires")
+		})
+
+		it("should return valid: false when markdown header is missing after frontmatter", () => {
+			const content = `---
+version: 1.0
+requires: opencode
+---
+No markdown header here, just text about agent tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+			const result = validateAgentContent(content)
+			expect(result.valid).toBe(false)
+			expect(result.error).toContain("markdown header")
+		})
+
+		it("should return valid: false when required keywords are missing", () => {
+			const content = `---
+version: 1.0
+requires: opencode
+---
+# Test Helper
+
+This is a helper that handles various operations for you.
+It can process multiple items efficiently and reliably.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+			const result = validateAgentContent(content)
+			expect(result.valid).toBe(false)
+			expect(result.error).toContain("missing required keywords")
+		})
+
+		it("should be case-insensitive for keyword matching", () => {
+			const content = `---
+version: 1.0
+requires: opencode
+---
+# Test AGENT
+
+This is a test AGENT that handles various TASKS.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+			const result = validateAgentContent(content)
+			expect(result.valid).toBe(true)
+		})
+
+		it("should allow whitespace between frontmatter and header", () => {
+			const content = `---
+version: 1.0
+requires: opencode
+---
+
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+			const result = validateAgentContent(content)
+			expect(result.valid).toBe(true)
 		})
 	})
 })
