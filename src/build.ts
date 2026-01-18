@@ -502,6 +502,38 @@ export class Builder {
 	}
 
 	/**
+	 * Ensure a session exists, creating one if needed
+	 * Used when resuming from a saved state where the session may be stale
+	 */
+	async ensureSession(cycle: number, title?: string): Promise<void> {
+		if (this.sessionId) {
+			// Check if session still exists
+			try {
+				await this.client.session.get({ path: { id: this.sessionId } })
+				this.logger.logVerbose(`Resuming with existing session: ${this.sessionId}`)
+				return
+			} catch {
+				// Session doesn't exist anymore, create a new one
+				this.logger.logVerbose(`Session ${this.sessionId} no longer exists, creating new session`)
+				this.sessionId = undefined
+			}
+		}
+
+		// Create a new session
+		const sessionTitle = title ?? `Cycle ${cycle}`
+		const session = await this.client.session.create({
+			body: { title: sessionTitle },
+		})
+
+		if (!session.data) {
+			throw new Error("Failed to create session")
+		}
+
+		this.sessionId = session.data.id
+		this.logger.logVerbose(`Created new session: ${this.sessionId}`)
+	}
+
+	/**
 	 * Shutdown the builder and close the server
 	 */
 	async shutdown(): Promise<void> {

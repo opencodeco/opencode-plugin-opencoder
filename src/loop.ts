@@ -412,6 +412,10 @@ async function runBuildPhase(
 	config: Config,
 	metrics: Metrics,
 ): Promise<Metrics> {
+	// Ensure we have an active session (handles resume from saved state)
+	await builder.ensureSession(state.cycle, `Cycle ${state.cycle}`)
+	state.sessionId = builder.getSessionId()
+
 	// Read current plan
 	const planContent = await readFileOrNull(paths.currentPlan)
 	if (!planContent) {
