@@ -434,6 +434,108 @@ describe("paths.mjs exports", () => {
 			expect(REQUIRED_FRONTMATTER_FIELDS).toContain("requires")
 		})
 
+		describe("REQUIRED_FRONTMATTER_FIELDS", () => {
+			it("should contain exactly 'version' and 'requires' fields", () => {
+				expect(REQUIRED_FRONTMATTER_FIELDS).toEqual(["version", "requires"])
+			})
+
+			it("should have exactly 2 required fields", () => {
+				expect(REQUIRED_FRONTMATTER_FIELDS).toHaveLength(2)
+			})
+
+			it("should have 'version' as the first required field", () => {
+				expect(REQUIRED_FRONTMATTER_FIELDS[0]).toBe("version")
+			})
+
+			it("should have 'requires' as the second required field", () => {
+				expect(REQUIRED_FRONTMATTER_FIELDS[1]).toBe("requires")
+			})
+
+			it("should be exported and accessible from the module", () => {
+				// Verify the constant is defined and has the expected type
+				expect(REQUIRED_FRONTMATTER_FIELDS).toBeDefined()
+				expect(typeof REQUIRED_FRONTMATTER_FIELDS).toBe("object")
+				expect(Array.isArray(REQUIRED_FRONTMATTER_FIELDS)).toBe(true)
+			})
+
+			it("should contain string values only", () => {
+				for (const field of REQUIRED_FRONTMATTER_FIELDS) {
+					expect(typeof field).toBe("string")
+				}
+			})
+
+			it("should not contain empty strings", () => {
+				for (const field of REQUIRED_FRONTMATTER_FIELDS) {
+					expect(field.length).toBeGreaterThan(0)
+					expect(field.trim()).toBe(field)
+				}
+			})
+
+			it("should be usable in validateAgentContent for field validation", () => {
+				// Content missing 'version' field
+				const missingVersion = `---
+requires: opencode
+---
+# Test Agent
+
+This is a test agent that handles various tasks for you.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+
+				const result1 = validateAgentContent(missingVersion)
+				expect(result1.valid).toBe(false)
+				expect(result1.error).toContain("version")
+				expect(result1.error).toContain("missing required fields")
+
+				// Content missing 'requires' field
+				const missingRequires = `---
+version: 1.0
+---
+# Test Agent
+
+This is a test agent that handles various tasks for you.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+
+				const result2 = validateAgentContent(missingRequires)
+				expect(result2.valid).toBe(false)
+				expect(result2.error).toContain("requires")
+				expect(result2.error).toContain("missing required fields")
+			})
+
+			it("should validate all fields from the constant are present in content", () => {
+				// Content with all required fields present
+				const validContent = `---
+version: 1.0
+requires: opencode
+---
+# Test Agent
+
+This is a test agent that handles various tasks for you.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+
+				const result = validateAgentContent(validContent)
+				expect(result.valid).toBe(true)
+				expect(result.error).toBeUndefined()
+			})
+
+			it("should report all missing fields when multiple are absent", () => {
+				// Content missing both 'version' and 'requires' fields
+				const missingBoth = `---
+name: test
+---
+# Test Agent
+
+This is a test agent that handles various tasks for you.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+
+				const result = validateAgentContent(missingBoth)
+				expect(result.valid).toBe(false)
+				expect(result.error).toContain("missing required fields")
+				// Both fields should be mentioned
+				expect(result.error).toContain("version")
+				expect(result.error).toContain("requires")
+			})
+		})
+
 		it("should export TRANSIENT_ERROR_CODES as an array", () => {
 			expect(Array.isArray(TRANSIENT_ERROR_CODES)).toBe(true)
 			expect(TRANSIENT_ERROR_CODES).toContain("EAGAIN")
