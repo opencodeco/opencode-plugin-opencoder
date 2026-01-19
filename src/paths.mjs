@@ -19,8 +19,9 @@ export {
 /**
  * List of expected agent names (without .md extension).
  * This is the single source of truth for agent filenames.
+ * Frozen to prevent accidental mutation.
  */
-export const AGENT_NAMES = ["opencoder", "opencoder-planner", "opencoder-builder"]
+export const AGENT_NAMES = Object.freeze(["opencoder", "opencoder-planner", "opencoder-builder"])
 
 /** Minimum character count for valid agent files */
 export const MIN_CONTENT_LENGTH = 100

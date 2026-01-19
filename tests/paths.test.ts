@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import {
+	AGENT_NAMES,
 	AGENTS_TARGET_DIR,
 	checkVersionCompatibility,
 	createLogger,
@@ -381,6 +382,41 @@ describe("paths.mjs exports", () => {
 	})
 
 	describe("constants", () => {
+		it("should export AGENT_NAMES as an array", () => {
+			expect(Array.isArray(AGENT_NAMES)).toBe(true)
+			expect(AGENT_NAMES).toContain("opencoder")
+			expect(AGENT_NAMES).toContain("opencoder-planner")
+			expect(AGENT_NAMES).toContain("opencoder-builder")
+		})
+
+		it("should have AGENT_NAMES frozen (immutable)", () => {
+			expect(Object.isFrozen(AGENT_NAMES)).toBe(true)
+		})
+
+		it("should prevent push to AGENT_NAMES", () => {
+			const originalLength = AGENT_NAMES.length
+			expect(() => {
+				;(AGENT_NAMES as string[]).push("new-agent")
+			}).toThrow()
+			expect(AGENT_NAMES.length).toBe(originalLength)
+		})
+
+		it("should prevent modification of AGENT_NAMES elements", () => {
+			const originalFirst = AGENT_NAMES[0]
+			expect(() => {
+				;(AGENT_NAMES as string[])[0] = "modified"
+			}).toThrow()
+			expect(AGENT_NAMES[0]).toBe(originalFirst)
+		})
+
+		it("should prevent pop from AGENT_NAMES", () => {
+			const originalLength = AGENT_NAMES.length
+			expect(() => {
+				;(AGENT_NAMES as string[]).pop()
+			}).toThrow()
+			expect(AGENT_NAMES.length).toBe(originalLength)
+		})
+
 		it("should export MIN_CONTENT_LENGTH as a number", () => {
 			expect(typeof MIN_CONTENT_LENGTH).toBe("number")
 			expect(MIN_CONTENT_LENGTH).toBe(100)
