@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { agents } from "../src/metadata"
-import { AGENT_NAMES } from "../src/paths.mjs"
+import { AGENT_NAMES, parseFrontmatter } from "../src/paths.mjs"
 
 describe("postinstall.mjs", () => {
 	const testDir = join(tmpdir(), `opencoder-test-${Date.now()}`)
@@ -90,60 +90,36 @@ describe("agent files YAML frontmatter", () => {
 	const agentsDir = join(import.meta.dir, "..", "agents")
 	const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
 
-	/**
-	 * Parses YAML frontmatter from a markdown file.
-	 * Returns the frontmatter as an object or null if not found.
-	 */
-	function parseFrontmatter(content: string): Record<string, string> | null {
-		const match = content.match(/^---\n([\s\S]*?)\n---/)
-		if (!match?.[1]) return null
-
-		const frontmatter: Record<string, string> = {}
-		const lines = match[1].split("\n")
-		for (const line of lines) {
-			const colonIndex = line.indexOf(":")
-			if (colonIndex > 0) {
-				const key = line.slice(0, colonIndex).trim()
-				const value = line
-					.slice(colonIndex + 1)
-					.trim()
-					.replace(/^["']|["']$/g, "")
-				frontmatter[key] = value
-			}
-		}
-		return frontmatter
-	}
-
 	for (const agentFile of agentFiles) {
 		describe(agentFile, () => {
 			it("should have valid YAML frontmatter", () => {
 				const content = readFileSync(join(agentsDir, agentFile), "utf-8")
-				const frontmatter = parseFrontmatter(content)
-				expect(frontmatter).not.toBeNull()
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
 			})
 
 			it("should have a version field", () => {
 				const content = readFileSync(join(agentsDir, agentFile), "utf-8")
-				const frontmatter = parseFrontmatter(content)
-				expect(frontmatter).not.toBeNull()
-				expect(frontmatter?.version).toBeDefined()
-				expect(frontmatter?.version).toMatch(/^\d+\.\d+\.\d+$/)
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				expect(result.fields.version).toBeDefined()
+				expect(result.fields.version).toMatch(/^\d+\.\d+\.\d+$/)
 			})
 
 			it("should have a requires field", () => {
 				const content = readFileSync(join(agentsDir, agentFile), "utf-8")
-				const frontmatter = parseFrontmatter(content)
-				expect(frontmatter).not.toBeNull()
-				expect(frontmatter?.requires).toBeDefined()
-				expect(frontmatter?.requires).toMatch(/^>=?\d+\.\d+\.\d+$/)
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				expect(result.fields.requires).toBeDefined()
+				expect(result.fields.requires).toMatch(/^>=?\d+\.\d+\.\d+$/)
 			})
 
 			it("should have an updated field with valid date", () => {
 				const content = readFileSync(join(agentsDir, agentFile), "utf-8")
-				const frontmatter = parseFrontmatter(content)
-				expect(frontmatter).not.toBeNull()
-				expect(frontmatter?.updated).toBeDefined()
-				expect(frontmatter?.updated).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+				const result = parseFrontmatter(content)
+				expect(result.found).toBe(true)
+				expect(result.fields.updated).toBeDefined()
+				expect(result.fields.updated).toMatch(/^\d{4}-\d{2}-\d{2}$/)
 			})
 		})
 	}
