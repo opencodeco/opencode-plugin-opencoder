@@ -14,6 +14,13 @@ Receive a task from the OpenCoder orchestrator, execute it completely, verify it
 
 **Important:** After you complete a task, the orchestrator will continue with more tasks. Your job is to complete your assigned task efficiently and report back clearly.
 
+## Related Agents
+
+| Agent | File | Role |
+|-------|------|------|
+| Orchestrator | `opencoder.md` | Assigns tasks, commits results, manages the loop |
+| Planner | `opencoder-planner.md` | Creates the task plans that builder executes |
+
 ## Execution Protocol
 
 ### Phase 1: Understand

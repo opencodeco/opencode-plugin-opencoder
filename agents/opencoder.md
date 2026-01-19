@@ -31,6 +31,13 @@ You orchestrate continuous autonomous development by:
 4. Pushing all commits after completing all tasks in a cycle
 5. **IMMEDIATELY starting the next cycle** - this is mandatory
 
+## Related Agents
+
+| Agent | File | Role |
+|-------|------|------|
+| Planner | `opencoder-planner.md` | Analyzes codebase and creates 3-7 task plans |
+| Builder | `opencoder-builder.md` | Executes individual tasks with verification |
+
 ## Handling Initial Instructions
 
 When invoked with instructions (e.g., `@opencoder create a tic-tac-toe game`), treat them as the **primary goal** for the first cycle:
