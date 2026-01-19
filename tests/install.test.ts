@@ -1921,6 +1921,250 @@ The agent handles various tasks and operations in the system.
 		})
 	})
 
+	describe("preuninstall error handling", () => {
+		it("should show verbose skip message for files that don't exist in target", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Ensure target directory exists but is empty (no agents installed)
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			// Remove all agent files if they exist
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+
+			// Should show verbose messages for skipped files
+			expect(stdout).toContain("[VERBOSE]")
+			expect(stdout).toContain("File does not exist, skipping")
+
+			// Should show processing for each agent file
+			expect(stdout).toContain("Processing: opencoder.md")
+			expect(stdout).toContain("Processing: opencoder-planner.md")
+			expect(stdout).toContain("Processing: opencoder-builder.md")
+		})
+
+		it("should show verbose skip message for partial installation (some files missing)", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Ensure target directory exists
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			// Install only one agent file
+			const sourcePath = join(process.cwd(), "agents", "opencoder.md")
+			const targetPath = join(AGENTS_TARGET_DIR, "opencoder.md")
+			if (existsSync(sourcePath)) {
+				const content = readFileSync(sourcePath, "utf-8")
+				writeFileSync(targetPath, content)
+			}
+
+			// Make sure other files don't exist
+			const otherFiles = ["opencoder-planner.md", "opencoder-builder.md"]
+			for (const file of otherFiles) {
+				const filePath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(filePath)) {
+					rmSync(filePath)
+				}
+			}
+
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+
+			// Should show that existing file would be removed
+			expect(stdout).toContain("Would remove:")
+			expect(stdout).toContain("opencoder.md")
+
+			// Should show skip messages for missing files
+			expect(stdout).toContain("File does not exist, skipping")
+
+			// Clean up
+			if (existsSync(targetPath)) {
+				rmSync(targetPath)
+			}
+		})
+
+		it("should display proper error message format in verbose mode", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Ensure target directory exists with some agents
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+			for (const file of agentFiles) {
+				const sourcePath = join(process.cwd(), "agents", file)
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(sourcePath)) {
+					const content = readFileSync(sourcePath, "utf-8")
+					writeFileSync(targetPath, content)
+				}
+			}
+
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+			const stderr = await new Response(proc.stderr).text()
+
+			expect(exitCode).toBe(0)
+
+			// Should show verbose details for each file
+			expect(stdout).toContain("[VERBOSE] Processing:")
+			expect(stdout).toContain("[VERBOSE]   Target path:")
+			expect(stdout).toContain("[VERBOSE]   File exists, removing...")
+			expect(stdout).toContain("[VERBOSE]   Successfully removed")
+
+			// Should not have any error messages for successful removal
+			expect(stderr).toBe("")
+
+			// Clean up
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+		})
+
+		it("should show removal summary in verbose mode", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Ensure target directory exists
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+			for (const file of agentFiles) {
+				const sourcePath = join(process.cwd(), "agents", file)
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(sourcePath)) {
+					const content = readFileSync(sourcePath, "utf-8")
+					writeFileSync(targetPath, content)
+				}
+			}
+
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+
+			// Should show the removal summary
+			expect(stdout).toContain("[VERBOSE] Removal summary: 3 files removed")
+			expect(stdout).toContain("Removed 3 agent(s)")
+
+			// Clean up
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+		})
+
+		it("should handle missing target directory gracefully in verbose mode", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Remove the target directory if it exists
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+
+			// First, clean up any existing agent files
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+
+			// Try to remove the directory if it's empty
+			if (existsSync(AGENTS_TARGET_DIR)) {
+				const files = readdirSync(AGENTS_TARGET_DIR)
+				if (files.length === 0) {
+					rmSync(AGENTS_TARGET_DIR, { recursive: true })
+				}
+			}
+
+			// Only run this test if directory was successfully removed
+			if (!existsSync(AGENTS_TARGET_DIR)) {
+				const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run", "--verbose"], {
+					cwd: process.cwd(),
+					stdout: "pipe",
+					stderr: "pipe",
+				})
+
+				const exitCode = await proc.exited
+				const stdout = await new Response(proc.stdout).text()
+
+				expect(exitCode).toBe(0)
+
+				// Should show verbose message about target directory check
+				expect(stdout).toContain("[VERBOSE] Checking if target directory exists...")
+				expect(stdout).toContain("[VERBOSE] Target directory does not exist")
+				expect(stdout).toContain("No agents directory found, nothing to remove")
+			}
+		})
+
+		it("should show no agents installed message when target exists but has no agent files", async () => {
+			const { AGENTS_TARGET_DIR } = await import("../src/paths.mjs")
+
+			// Ensure target directory exists
+			mkdirSync(AGENTS_TARGET_DIR, { recursive: true })
+
+			// Remove all agent files
+			const agentFiles = ["opencoder.md", "opencoder-planner.md", "opencoder-builder.md"]
+			for (const file of agentFiles) {
+				const targetPath = join(AGENTS_TARGET_DIR, file)
+				if (existsSync(targetPath)) {
+					rmSync(targetPath)
+				}
+			}
+
+			const proc = Bun.spawn(["node", "preuninstall.mjs", "--dry-run", "--verbose"], {
+				cwd: process.cwd(),
+				stdout: "pipe",
+				stderr: "pipe",
+			})
+
+			const exitCode = await proc.exited
+			const stdout = await new Response(proc.stdout).text()
+
+			expect(exitCode).toBe(0)
+
+			// Should show verbose removal summary with 0 files
+			expect(stdout).toContain("[VERBOSE] Removal summary: 0 files removed")
+			expect(stdout).toContain("No agents were installed, nothing removed")
+		})
+	})
+
 	describe("CLI flags: --verbose", () => {
 		it("postinstall --verbose shows detailed output", async () => {
 			const proc = Bun.spawn(["node", "postinstall.mjs", "--dry-run", "--verbose"], {
