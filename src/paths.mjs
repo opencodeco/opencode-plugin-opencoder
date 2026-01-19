@@ -56,8 +56,11 @@ export const MIN_CONTENT_LENGTH = 100
  */
 export const REQUIRED_KEYWORDS = ["agent", "task"]
 
-/** Required fields in YAML frontmatter */
-export const REQUIRED_FRONTMATTER_FIELDS = ["version", "requires"]
+/**
+ * Required fields in YAML frontmatter.
+ * Frozen to prevent accidental mutation.
+ */
+export const REQUIRED_FRONTMATTER_FIELDS = Object.freeze(["version", "requires"])
 
 /**
  * Get the package root directory from a module's import.meta.url

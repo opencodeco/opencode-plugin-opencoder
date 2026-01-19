@@ -571,6 +571,34 @@ This is a test agent that handles various tasks for you.
 				expect(result.error).toContain("version")
 				expect(result.error).toContain("requires")
 			})
+
+			it("should be frozen (immutable)", () => {
+				expect(Object.isFrozen(REQUIRED_FRONTMATTER_FIELDS)).toBe(true)
+			})
+
+			it("should prevent push to REQUIRED_FRONTMATTER_FIELDS", () => {
+				const originalLength = REQUIRED_FRONTMATTER_FIELDS.length
+				expect(() => {
+					;(REQUIRED_FRONTMATTER_FIELDS as unknown as string[]).push("new-field")
+				}).toThrow()
+				expect(REQUIRED_FRONTMATTER_FIELDS.length).toBe(originalLength)
+			})
+
+			it("should prevent modification of REQUIRED_FRONTMATTER_FIELDS elements", () => {
+				const originalFirst = REQUIRED_FRONTMATTER_FIELDS[0]
+				expect(() => {
+					;(REQUIRED_FRONTMATTER_FIELDS as unknown as string[])[0] = "modified"
+				}).toThrow()
+				expect(REQUIRED_FRONTMATTER_FIELDS[0]).toBe(originalFirst)
+			})
+
+			it("should prevent pop from REQUIRED_FRONTMATTER_FIELDS", () => {
+				const originalLength = REQUIRED_FRONTMATTER_FIELDS.length
+				expect(() => {
+					;(REQUIRED_FRONTMATTER_FIELDS as unknown as string[]).pop()
+				}).toThrow()
+				expect(REQUIRED_FRONTMATTER_FIELDS.length).toBe(originalLength)
+			})
 		})
 
 		it("should export TRANSIENT_ERROR_CODES as an array", () => {

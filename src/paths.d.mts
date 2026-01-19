@@ -50,8 +50,11 @@ export declare const MIN_CONTENT_LENGTH: number
  */
 export declare const REQUIRED_KEYWORDS: readonly ["agent", "task"]
 
-/** Required fields in YAML frontmatter */
-export declare const REQUIRED_FRONTMATTER_FIELDS: string[]
+/**
+ * Required fields in YAML frontmatter.
+ * Frozen to prevent accidental mutation.
+ */
+export declare const REQUIRED_FRONTMATTER_FIELDS: readonly ["version", "requires"]
 
 /**
  * Get the package root directory from a module's import.meta.url
