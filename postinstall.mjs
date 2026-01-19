@@ -12,16 +12,13 @@ import { join } from "node:path"
 
 import {
 	AGENTS_TARGET_DIR,
-	checkVersionCompatibility,
 	createLogger,
 	getAgentsSourceDir,
 	getErrorMessage,
 	getPackageRoot,
-	OPENCODE_VERSION,
 	parseCliFlags,
-	parseFrontmatter,
 	retryOnTransientError,
-	validateAgentContent,
+	validateAgentFile,
 } from "./src/paths.mjs"
 
 const packageRoot = getPackageRoot(import.meta.url)
@@ -53,59 +50,6 @@ Examples:
 /** Create logger with verbose flag */
 const logger = createLogger(VERBOSE)
 const verbose = logger.verbose
-
-/**
- * Validates an agent file by reading and validating its content,
- * including version compatibility checking.
- *
- * Performs the following validations:
- * 1. Content structure validation (frontmatter, headers, keywords)
- * 2. Version compatibility checking against current OpenCode version
- *
- * @param {string} filePath - Path to the agent file to validate
- * @returns {{ valid: boolean, error?: string }} Validation result with optional error message
- * @throws {Error} If the file does not exist (ENOENT)
- * @throws {Error} If permission is denied reading the file (EACCES)
- * @throws {Error} If the file is a directory (EISDIR)
- *
- * @example
- * // Validate an agent file
- * const result = validateAgentFile('/path/to/agent.md')
- * if (!result.valid) {
- *   console.error(`Validation failed: ${result.error}`)
- * }
- *
- * @example
- * // Use in a file copy loop
- * for (const file of agentFiles) {
- *   const validation = validateAgentFile(join(sourceDir, file))
- *   if (validation.valid) {
- *     copyFileSync(join(sourceDir, file), join(targetDir, file))
- *   }
- * }
- */
-function validateAgentFile(filePath) {
-	const content = readFileSync(filePath, "utf-8")
-	const contentValidation = validateAgentContent(content)
-	if (!contentValidation.valid) {
-		return contentValidation
-	}
-
-	// Check version compatibility from frontmatter
-	const frontmatter = parseFrontmatter(content)
-	if (frontmatter.found && frontmatter.fields.requires) {
-		const requiresVersion = frontmatter.fields.requires
-		const isCompatible = checkVersionCompatibility(requiresVersion, OPENCODE_VERSION)
-		if (!isCompatible) {
-			return {
-				valid: false,
-				error: `Incompatible OpenCode version: requires ${requiresVersion}, but current version is ${OPENCODE_VERSION}`,
-			}
-		}
-	}
-
-	return { valid: true }
-}
 
 /**
  * Main entry point for the postinstall script.

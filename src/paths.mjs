@@ -5,9 +5,13 @@
  * and preuninstall.mjs to locate agent files.
  */
 
+import { readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+
+// Import checkVersionCompatibility for internal use
+import { checkVersionCompatibility as _checkVersionCompatibility } from "./semver.mjs"
 
 // Re-export semver utilities for backwards compatibility
 export {
@@ -506,4 +510,72 @@ export function createLogger(verbose) {
 			}
 		},
 	}
+}
+
+/**
+ * Validates an agent file by reading and validating its content,
+ * including version compatibility checking.
+ *
+ * Performs the following validations:
+ * 1. Content structure validation (frontmatter, headers, keywords)
+ * 2. Version compatibility checking against current OpenCode version
+ *
+ * @param {string} filePath - Path to the agent file to validate
+ * @param {string} [currentVersion] - The current OpenCode version to check against (defaults to OPENCODE_VERSION)
+ * @returns {{ valid: boolean, error?: string }} Validation result with optional error message
+ * @throws {Error} If the file does not exist (ENOENT)
+ * @throws {Error} If permission is denied reading the file (EACCES)
+ * @throws {Error} If the file is a directory (EISDIR)
+ * @throws {TypeError} If filePath is not a non-empty string
+ *
+ * @example
+ * // Validate an agent file
+ * const result = validateAgentFile('/path/to/agent.md')
+ * if (!result.valid) {
+ *   console.error(`Validation failed: ${result.error}`)
+ * }
+ *
+ * @example
+ * // Use in a file copy loop
+ * for (const file of agentFiles) {
+ *   const validation = validateAgentFile(join(sourceDir, file))
+ *   if (validation.valid) {
+ *     copyFileSync(join(sourceDir, file), join(targetDir, file))
+ *   }
+ * }
+ *
+ * @example
+ * // Validate against a specific version
+ * const result = validateAgentFile('/path/to/agent.md', '1.0.0')
+ */
+export function validateAgentFile(filePath, currentVersion = OPENCODE_VERSION) {
+	if (typeof filePath !== "string") {
+		throw new TypeError(
+			`validateAgentFile: filePath must be a string, got ${filePath === null ? "null" : typeof filePath}`,
+		)
+	}
+	if (filePath.trim() === "") {
+		throw new TypeError("validateAgentFile: filePath must not be empty")
+	}
+
+	const content = readFileSync(filePath, "utf-8")
+	const contentValidation = validateAgentContent(content)
+	if (!contentValidation.valid) {
+		return contentValidation
+	}
+
+	// Check version compatibility from frontmatter
+	const frontmatter = parseFrontmatter(content)
+	if (frontmatter.found && frontmatter.fields.requires) {
+		const requiresVersion = frontmatter.fields.requires
+		const isCompatible = _checkVersionCompatibility(requiresVersion, currentVersion)
+		if (!isCompatible) {
+			return {
+				valid: false,
+				error: `Incompatible OpenCode version: requires ${requiresVersion}, but current version is ${currentVersion}`,
+			}
+		}
+	}
+
+	return { valid: true }
 }

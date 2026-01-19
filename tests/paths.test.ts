@@ -19,6 +19,7 @@ import {
 	retryOnTransientError,
 	TRANSIENT_ERROR_CODES,
 	validateAgentContent,
+	validateAgentFile,
 } from "../src/paths.mjs"
 
 describe("paths.mjs exports", () => {
@@ -2279,6 +2280,312 @@ This is a test agent that handles various tasks.
 			expect(messages[0]).toBe("[VERBOSE] simple")
 			expect(messages[1]).toBe("[VERBOSE]   leading spaces")
 			expect(messages[2]).toBe("[VERBOSE] trailing spaces  ")
+		})
+	})
+
+	describe("validateAgentFile", () => {
+		describe("with actual files", () => {
+			it("should return valid: true for actual agent files in agents/ directory", () => {
+				const agentsDir = join(import.meta.dirname, "..", "agents")
+				for (const name of AGENT_NAMES) {
+					const filePath = join(agentsDir, `${name}.md`)
+					const result = validateAgentFile(filePath)
+					expect(result.valid).toBe(true)
+					expect(result.error).toBeUndefined()
+				}
+			})
+
+			it("should throw error for non-existent file", () => {
+				const nonExistentPath = join(import.meta.dirname, "non-existent-file.md")
+				expect(() => validateAgentFile(nonExistentPath)).toThrow()
+			})
+		})
+
+		describe("input validation", () => {
+			it("should throw TypeError for null input", () => {
+				expect(() => validateAgentFile(null as unknown as string)).toThrow(TypeError)
+				expect(() => validateAgentFile(null as unknown as string)).toThrow(
+					"validateAgentFile: filePath must be a string, got null",
+				)
+			})
+
+			it("should throw TypeError for undefined input", () => {
+				expect(() => validateAgentFile(undefined as unknown as string)).toThrow(TypeError)
+				expect(() => validateAgentFile(undefined as unknown as string)).toThrow(
+					"validateAgentFile: filePath must be a string, got undefined",
+				)
+			})
+
+			it("should throw TypeError for non-string input", () => {
+				expect(() => validateAgentFile(123 as unknown as string)).toThrow(TypeError)
+				expect(() => validateAgentFile(123 as unknown as string)).toThrow(
+					"validateAgentFile: filePath must be a string, got number",
+				)
+				expect(() => validateAgentFile({} as unknown as string)).toThrow(TypeError)
+				expect(() => validateAgentFile({} as unknown as string)).toThrow(
+					"validateAgentFile: filePath must be a string, got object",
+				)
+			})
+
+			it("should throw TypeError for empty string input", () => {
+				expect(() => validateAgentFile("")).toThrow(TypeError)
+				expect(() => validateAgentFile("")).toThrow("validateAgentFile: filePath must not be empty")
+			})
+
+			it("should throw TypeError for whitespace-only string input", () => {
+				expect(() => validateAgentFile("   ")).toThrow(TypeError)
+				expect(() => validateAgentFile("   ")).toThrow(
+					"validateAgentFile: filePath must not be empty",
+				)
+			})
+		})
+
+		describe("version compatibility", () => {
+			it("should use OPENCODE_VERSION as default when no currentVersion provided", () => {
+				// This tests that the default parameter works correctly
+				const agentsDir = join(import.meta.dirname, "..", "agents")
+				const filePath = join(agentsDir, "opencoder.md")
+				const result = validateAgentFile(filePath)
+				// If the agent file requires >=0.1.0 and OPENCODE_VERSION is 0.1.0, it should be valid
+				expect(result.valid).toBe(true)
+			})
+
+			it("should accept custom currentVersion parameter", () => {
+				const agentsDir = join(import.meta.dirname, "..", "agents")
+				const filePath = join(agentsDir, "opencoder.md")
+				// Test with a very high version that should be compatible with any requirement
+				const result = validateAgentFile(filePath, "99.99.99")
+				expect(result.valid).toBe(true)
+			})
+
+			it("should return invalid when version requirement is not met", () => {
+				const agentsDir = join(import.meta.dirname, "..", "agents")
+				const filePath = join(agentsDir, "opencoder.md")
+				// Test with a very low version that should fail most requirements
+				const result = validateAgentFile(filePath, "0.0.1")
+				// This will depend on what the actual agent file requires
+				// If it requires >=0.1.0, then 0.0.1 should fail
+				expect(result.valid).toBe(false)
+				expect(result.error).toContain("Incompatible OpenCode version")
+			})
+		})
+
+		describe("content validation", () => {
+			it("should validate content structure through validateAgentContent", () => {
+				// This tests that validateAgentFile properly delegates to validateAgentContent
+				const agentsDir = join(import.meta.dirname, "..", "agents")
+				for (const name of AGENT_NAMES) {
+					const filePath = join(agentsDir, `${name}.md`)
+					const result = validateAgentFile(filePath)
+					// All agent files should have valid structure
+					expect(result.valid).toBe(true)
+				}
+			})
+		})
+
+		describe("error propagation", () => {
+			it("should propagate content validation errors", () => {
+				// Create a temporary file with invalid content (no frontmatter)
+				const { writeFileSync, unlinkSync, existsSync: fsExistsSync } = require("node:fs")
+				const tempPath = join(import.meta.dirname, "temp-invalid-agent.md")
+				try {
+					writeFileSync(
+						tempPath,
+						"# No Frontmatter\n\nThis agent has no frontmatter but mentions agent and task.".padEnd(
+							MIN_CONTENT_LENGTH + 10,
+							" ",
+						),
+					)
+					const result = validateAgentFile(tempPath)
+					expect(result.valid).toBe(false)
+					expect(result.error).toContain("frontmatter")
+				} finally {
+					if (fsExistsSync(tempPath)) {
+						unlinkSync(tempPath)
+					}
+				}
+			})
+
+			it("should propagate version incompatibility errors", () => {
+				const { writeFileSync, unlinkSync, existsSync: fsExistsSync } = require("node:fs")
+				const tempPath = join(import.meta.dirname, "temp-version-agent.md")
+				try {
+					const content = `---
+version: 1.0
+requires: ">=99.0.0"
+---
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+					writeFileSync(tempPath, content)
+					const result = validateAgentFile(tempPath, "1.0.0")
+					expect(result.valid).toBe(false)
+					expect(result.error).toContain("Incompatible OpenCode version")
+					expect(result.error).toContain("requires >=99.0.0")
+					expect(result.error).toContain("current version is 1.0.0")
+				} finally {
+					if (fsExistsSync(tempPath)) {
+						unlinkSync(tempPath)
+					}
+				}
+			})
+		})
+
+		describe("integration with version operators", () => {
+			it("should work with exact version requirements", () => {
+				const { writeFileSync, unlinkSync, existsSync: fsExistsSync } = require("node:fs")
+				const tempPath = join(import.meta.dirname, "temp-exact-version.md")
+				try {
+					const content = `---
+version: 1.0
+requires: "1.0.0"
+---
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+					writeFileSync(tempPath, content)
+
+					expect(validateAgentFile(tempPath, "1.0.0").valid).toBe(true)
+					expect(validateAgentFile(tempPath, "1.0.1").valid).toBe(false)
+					expect(validateAgentFile(tempPath, "0.9.9").valid).toBe(false)
+				} finally {
+					if (fsExistsSync(tempPath)) {
+						unlinkSync(tempPath)
+					}
+				}
+			})
+
+			it("should work with >= version requirements", () => {
+				const { writeFileSync, unlinkSync, existsSync: fsExistsSync } = require("node:fs")
+				const tempPath = join(import.meta.dirname, "temp-gte-version.md")
+				try {
+					const content = `---
+version: 1.0
+requires: ">=1.0.0"
+---
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+					writeFileSync(tempPath, content)
+
+					expect(validateAgentFile(tempPath, "1.0.0").valid).toBe(true)
+					expect(validateAgentFile(tempPath, "1.0.1").valid).toBe(true)
+					expect(validateAgentFile(tempPath, "2.0.0").valid).toBe(true)
+					expect(validateAgentFile(tempPath, "0.9.9").valid).toBe(false)
+				} finally {
+					if (fsExistsSync(tempPath)) {
+						unlinkSync(tempPath)
+					}
+				}
+			})
+
+			it("should work with ^ caret version requirements", () => {
+				const { writeFileSync, unlinkSync, existsSync: fsExistsSync } = require("node:fs")
+				const tempPath = join(import.meta.dirname, "temp-caret-version.md")
+				try {
+					const content = `---
+version: 1.0
+requires: "^1.0.0"
+---
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+					writeFileSync(tempPath, content)
+
+					expect(validateAgentFile(tempPath, "1.0.0").valid).toBe(true)
+					expect(validateAgentFile(tempPath, "1.5.0").valid).toBe(true)
+					expect(validateAgentFile(tempPath, "1.9.9").valid).toBe(true)
+					expect(validateAgentFile(tempPath, "2.0.0").valid).toBe(false)
+					expect(validateAgentFile(tempPath, "0.9.9").valid).toBe(false)
+				} finally {
+					if (fsExistsSync(tempPath)) {
+						unlinkSync(tempPath)
+					}
+				}
+			})
+
+			it("should work with ~ tilde version requirements", () => {
+				const { writeFileSync, unlinkSync, existsSync: fsExistsSync } = require("node:fs")
+				const tempPath = join(import.meta.dirname, "temp-tilde-version.md")
+				try {
+					const content = `---
+version: 1.0
+requires: "~1.2.0"
+---
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+					writeFileSync(tempPath, content)
+
+					expect(validateAgentFile(tempPath, "1.2.0").valid).toBe(true)
+					expect(validateAgentFile(tempPath, "1.2.5").valid).toBe(true)
+					expect(validateAgentFile(tempPath, "1.3.0").valid).toBe(false)
+					expect(validateAgentFile(tempPath, "1.1.0").valid).toBe(false)
+				} finally {
+					if (fsExistsSync(tempPath)) {
+						unlinkSync(tempPath)
+					}
+				}
+			})
+		})
+
+		describe("files without requires field", () => {
+			it("should skip version check when requires field is not a version string", () => {
+				const { writeFileSync, unlinkSync, existsSync: fsExistsSync } = require("node:fs")
+				const tempPath = join(import.meta.dirname, "temp-no-requires.md")
+				try {
+					// When requires is not a version string like "opencode", version compatibility check happens
+					// but checkVersionCompatibility returns false for invalid version strings
+					const content = `---
+version: 1.0
+requires: opencode
+---
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+					writeFileSync(tempPath, content)
+
+					// The requires field "opencode" is not a valid version string
+					// checkVersionCompatibility("opencode", ...) returns false
+					const result = validateAgentFile(tempPath)
+					expect(result.valid).toBe(false)
+					expect(result.error).toContain("Incompatible OpenCode version")
+				} finally {
+					if (fsExistsSync(tempPath)) {
+						unlinkSync(tempPath)
+					}
+				}
+			})
+
+			it("should pass when requires field has valid version that matches", () => {
+				const { writeFileSync, unlinkSync, existsSync: fsExistsSync } = require("node:fs")
+				const tempPath = join(import.meta.dirname, "temp-valid-requires.md")
+				try {
+					const content = `---
+version: 1.0
+requires: ">=0.1.0"
+---
+# Test Agent
+
+This is a test agent that handles various tasks.
+`.padEnd(MIN_CONTENT_LENGTH + 50, " ")
+					writeFileSync(tempPath, content)
+
+					// Using OPENCODE_VERSION which is "0.1.0", this should be compatible
+					const result = validateAgentFile(tempPath)
+					expect(result.valid).toBe(true)
+				} finally {
+					if (fsExistsSync(tempPath)) {
+						unlinkSync(tempPath)
+					}
+				}
+			})
 		})
 	})
 })

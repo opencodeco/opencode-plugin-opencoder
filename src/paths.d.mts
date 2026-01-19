@@ -365,3 +365,51 @@ export interface Logger {
  * logger.verbose("Source: /path/to/src") // Does nothing (verbose disabled)
  */
 export function createLogger(verbose: boolean): Logger
+
+/**
+ * Result of validating an agent file.
+ */
+export interface ValidateAgentFileResult {
+	/** Whether the file is valid */
+	valid: boolean
+	/** Error message if validation failed */
+	error?: string
+}
+
+/**
+ * Validates an agent file by reading and validating its content,
+ * including version compatibility checking.
+ *
+ * Performs the following validations:
+ * 1. Content structure validation (frontmatter, headers, keywords)
+ * 2. Version compatibility checking against current OpenCode version
+ *
+ * @param filePath - Path to the agent file to validate
+ * @param currentVersion - The current OpenCode version to check against (defaults to OPENCODE_VERSION)
+ * @returns Validation result with valid status and optional error message
+ * @throws {Error} If the file does not exist (ENOENT)
+ * @throws {Error} If permission is denied reading the file (EACCES)
+ * @throws {Error} If the file is a directory (EISDIR)
+ * @throws {TypeError} If filePath is not a non-empty string
+ *
+ * @example
+ * // Validate an agent file
+ * const result = validateAgentFile('/path/to/agent.md')
+ * if (!result.valid) {
+ *   console.error(`Validation failed: ${result.error}`)
+ * }
+ *
+ * @example
+ * // Use in a file copy loop
+ * for (const file of agentFiles) {
+ *   const validation = validateAgentFile(join(sourceDir, file))
+ *   if (validation.valid) {
+ *     copyFileSync(join(sourceDir, file), join(targetDir, file))
+ *   }
+ * }
+ *
+ * @example
+ * // Validate against a specific version
+ * const result = validateAgentFile('/path/to/agent.md', '1.0.0')
+ */
+export function validateAgentFile(filePath: string, currentVersion?: string): ValidateAgentFileResult
