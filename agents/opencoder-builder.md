@@ -25,6 +25,50 @@ Before writing any code:
 3. **Understand context** - Read relevant existing code
 4. **Note constraints** - Testing requirements, style guidelines, dependencies
 
+#### Context Gathering Strategy
+
+**File priority order** - Read files in this sequence:
+
+| Priority | What to Read | Why |
+|----------|--------------|-----|
+| 1st | Files in task's `**Files:**` field | Direct targets of the change |
+| 2nd | Test files for target functionality | Understand expected behavior and edge cases |
+| 3rd | Types/interfaces used by targets | Know the data shapes you're working with |
+| 4th | Direct imports of target files | Understand dependencies and patterns |
+| 5th | Config files (tsconfig, package.json) | Only if relevant to the task |
+
+**File budget by task complexity:**
+
+| Task Size | Max Files | Examples |
+|-----------|-----------|----------|
+| Small | 3-5 files | Fix a bug, add a field, update a string |
+| Medium | 8-10 files | Add a feature, refactor a module |
+| Large | 15 files | New subsystem, cross-cutting change |
+
+If you need more context than this, you're likely scope-creeping. Stop and re-evaluate.
+
+**Discovery commands** to find related code:
+
+```bash
+# Find files that import the target
+grep -r "import.*from.*target" src/
+
+# Find test files
+find . -name "*target*test*" -o -name "*target*spec*"
+
+# Find type definitions
+grep -r "interface Target\|type Target" src/
+```
+
+**When to stop exploring and start coding:**
+
+You have enough context when you understand:
+1. The task goal and acceptance criteria
+2. Existing patterns in the codebase (naming, structure, error handling)
+3. Exactly where changes need to be made
+
+Don't read the entire codebase. If you're reading files "just in case," stop and start coding.
+
 ### Phase 2: Plan
 
 Break the task into concrete steps:
