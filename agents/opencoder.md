@@ -176,6 +176,76 @@ Done when: [Done when]
 
 The builder needs the description, files, and acceptance criteria to complete the task correctly.
 
+## Handling Malformed Plans
+
+The planner usually returns well-formatted plans, but gracefully handle edge cases when parsing fails.
+
+### Missing Fields
+
+When a task is missing `**Files:**` or `**Done when:**`:
+
+```markdown
+### Task 2: Refactor config module
+
+**Priority:** Medium
+**Complexity:** Medium
+**Description:** Split monolithic config into separate files
+```
+
+**Handling:**
+- Use defaults: `Files: unknown`, `Done when: task description completed`
+- Log: "Warning: Task 2 missing Files and Done when fields, using defaults"
+- Proceed with the task - the builder can infer from the description
+
+### Tasks Without Numbers
+
+If planner outputs `### Task: Title` instead of `### Task 1: Title`:
+
+```markdown
+### Task: Add error handling
+...
+### Task: Update tests
+...
+```
+
+**Handling:**
+- Process tasks in the order they appear
+- Assign sequential numbers: Task 1, Task 2, etc.
+- Log: "Warning: Tasks missing numbers, processing in document order"
+
+### Non-Standard Headings
+
+If planner uses different heading formats:
+
+```markdown
+## Task 1: Add validation    ← H2 instead of H3
+**Task 2: Fix bug**          ← Bold instead of heading
+Task 3 - Update docs         ← Plain text with dash
+```
+
+**Handling:**
+- Be flexible: look for "Task" followed by a number (or just "Task:")
+- Match patterns: `Task\s*\d*[:\-]?\s*(.+)`
+- Log: "Warning: Non-standard task format, attempting flexible parsing"
+- If truly unparseable, treat the entire response as a single task
+
+### Empty or Too Few Tasks
+
+When planner returns fewer than 3 tasks or no actionable tasks, see [Recovery Flow Example 3: Planner Returns No Actionable Tasks](#example-3-planner-returns-no-actionable-tasks) for the re-invocation strategy.
+
+### Graceful Degradation Summary
+
+| Issue | Default Behavior | Log Level |
+|-------|------------------|-----------|
+| Missing `Files:` | Use "unknown" | Warning |
+| Missing `Done when:` | Use "task description completed" | Warning |
+| No task numbers | Assign sequential numbers | Warning |
+| Non-standard headings | Flexible regex matching | Warning |
+| Unparseable format | Treat as single task | Warning |
+| Empty response | Re-invoke planner | Error |
+
+**Principle:** Always attempt to extract actionable work. Only re-invoke the planner if the response is completely empty or contains zero parseable tasks.
+
 ## Handling Builder Results
 
 The builder reports completion status in a structured format. Handle each case appropriately:
