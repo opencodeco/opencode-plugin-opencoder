@@ -107,7 +107,7 @@ Each task follows this structure:
 ### Task N: [Title]
 
 **Priority:** Critical/High/Medium/Low
-**Complexity:** Low/Medium/High
+**Complexity:** Small/Medium/Large
 **Description:** What needs to be done and why
 **Files:** Comma-separated list of files
 **Done when:** Acceptance criteria
@@ -138,7 +138,7 @@ Each task follows this structure:
 ### Task 2: Fix null pointer bug
 
 **Priority:** Critical
-**Complexity:** Low
+**Complexity:** Small
 **Description:** User service crashes when email is missing.
 **Files:** src/services/user.ts
 **Done when:** Missing email handled gracefully
@@ -488,7 +488,7 @@ Planner returns fewer than 3 tasks or claims the codebase needs no improvements.
   
   ### Task 1: Update copyright year
   **Priority:** Low
-  **Complexity:** Low
+  **Complexity:** Small
   **Description:** Update copyright to 2026
   
   (Only 1 task returned)
