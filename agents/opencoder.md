@@ -390,6 +390,143 @@ After each task completes, mentally note its category based on the work done:
 - Don't add hints if categories have been diverse
 - The planner will adjust priorities based on the hint
 
+## Recovery Flow Examples
+
+These examples show the exact flow of commands and decisions when handling common failure modes.
+
+### Example 1: Task Fails Mid-Execution
+
+A builder reports it cannot complete a task due to missing dependencies or prerequisites.
+
+```
+[CYCLE 3, Task 3 of 5]
+
+> @opencoder-builder Execute this task: Add input validation
+
+  Add zod schemas to validate API request bodies.
+  Files: src/api/users.ts, src/schemas/user.ts
+  Done when: Invalid requests return 400 with error details
+
+< Builder response:
+  ## Blocked: Add input validation
+  **Reason:** zod package not installed
+  **Attempted:** Tried to import zod, checked package.json
+  **Suggestion:** Run `bun add zod` first
+  **Status:** READY_FOR_NEXT_TASK
+
+> Decision: Task blocked, no changes made
+> Log: "Task 3 blocked - missing zod dependency"
+> Action: Skip commit (nothing to commit), proceed to Task 4
+
+> @opencoder-builder Execute this task: Update error messages...
+
+[After cycle completes]
+> Pass blocker context to planner in next cycle:
+  @opencoder-planner Analyze the codebase. Note: Task "Add input validation" 
+  was blocked due to missing zod dependency. Consider adding dependency 
+  installation as a prerequisite task.
+```
+
+**Key decisions:**
+- No commit for blocked tasks (no changes were made)
+- Continue to next task immediately
+- Pass blocker context to planner for next cycle
+
+### Example 2: Git Push Fails Requiring Rebase
+
+Remote has new commits that must be integrated before pushing.
+
+```
+[End of Cycle 4]
+
+> git push
+< error: failed to push some refs to 'origin/main'
+  hint: Updates were rejected because the remote contains work that you do
+  hint: not have locally. This is usually caused by another repository pushing
+  hint: to the same ref. You may want to first integrate the remote changes
+
+> Recovery sequence:
+> git pull --rebase
+< Successfully rebased and updated refs/heads/main.
+  First, rewinding head to replay your work on top of it...
+  Applying: fix: resolve null pointer in user service
+  Applying: feat: add input validation
+  Applying: test: add unit tests for validation
+
+> git push
+< To github.com:user/repo.git
+     abc123..def456  main -> main
+
+> Success - continue to next cycle
+> /clear
+> "Cycle 4 complete: Fixed null pointer, added validation and tests"
+
+[CYCLE 5]
+> @opencoder-planner Analyze the codebase...
+```
+
+**Key decisions:**
+- Use `git pull --rebase` to preserve linear history
+- Retry push exactly once after successful rebase
+- If rebase has conflicts, resolve them before retrying
+- Continue to next cycle after successful push
+
+### Example 3: Planner Returns No Actionable Tasks
+
+Planner returns fewer than 3 tasks or claims the codebase needs no improvements.
+
+```
+[CYCLE 7]
+
+> @opencoder-planner Analyze the codebase and create a development plan with 3-7 prioritized tasks.
+
+< Planner response:
+  ## Development Plan
+  
+  The codebase is well-maintained with good test coverage. 
+  I found only minor improvements:
+  
+  ### Task 1: Update copyright year
+  **Priority:** P3
+  **Complexity:** Low
+  **Description:** Update copyright to 2026
+  
+  (Only 1 task returned)
+
+> FORBIDDEN: Planner must return 3-7 tasks
+> Re-invoke with explicit guidance:
+
+> @opencoder-planner Analyze the codebase. You MUST return 3-7 tasks.
+  The previous response only contained 1 task, which is insufficient.
+  
+  Consider these often-overlooked areas:
+  - Error message quality and user-friendliness
+  - Edge case handling in core functions
+  - Test coverage depth (not just breadth)
+  - Documentation freshness and accuracy
+  - Performance optimizations (caching, lazy loading)
+  - Security hardening (input sanitization, auth checks)
+  - Developer experience (logging, debugging support)
+  - Accessibility improvements
+  - Code consistency across modules
+
+< Planner returns 5 tasks:
+  ### Task 1: Improve error messages in API handlers
+  ### Task 2: Add edge case tests for date parsing
+  ### Task 3: Cache expensive database queries
+  ### Task 4: Add request logging middleware
+  ### Task 5: Standardize error response format
+
+> Continue normally with 5-task plan
+> @opencoder-builder Execute this task: Improve error messages in API handlers...
+```
+
+**Key decisions:**
+- Never accept "codebase looks good" - there is ALWAYS room for improvement
+- Re-invoke planner with explicit category suggestions
+- Provide the list of improvement areas to guide the planner
+- Only proceed once 3-7 actionable tasks are returned
+
 ## Git Operations
 
 ### After Each Task Completes
